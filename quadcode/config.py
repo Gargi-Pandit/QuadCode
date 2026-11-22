@@ -69,11 +69,35 @@ class RunConfig(_Strict):
     runs_dir: str = "runs"
 
 
+SandboxBackendName = Literal["auto", "docker", "subprocess"]
+
+
+class SandboxConfig(_Strict):
+    """Limits and measurement settings for executing untrusted generated code."""
+
+    backend: SandboxBackendName = "auto"
+    docker_image: str = Field(default="python:3.12-slim", min_length=1)
+    memory_mb: int = Field(default=512, ge=32)
+    cpus: float = Field(default=1.0, gt=0)
+    pids_limit: int = Field(default=64, ge=8)
+    test_timeout_s: float = Field(default=5.0, gt=0, description="Limit for a single call of the entry point.")
+    wall_timeout_s: float = Field(default=120.0, gt=0, description="Limit for the whole sandbox process.")
+    test_repeats: int = Field(default=3, ge=1, description="Timed runs per test in suite runs.")
+    benchmark_repeats: int = Field(default=7, ge=1, description="Timed runs per test in benchmarks.")
+    warmup: int = Field(default=1, ge=0)
+    max_output_bytes: int = Field(default=8_000_000, ge=10_000)
+    max_actual_chars: int = Field(default=2_000, ge=50, description="Stored 'actual' values are truncated past this.")
+    float_rel_tol: float = Field(default=1e-9, ge=0)
+    float_abs_tol: float = Field(default=1e-9, ge=0)
+    seed: int = 0
+
+
 class AppConfig(_Strict):
     providers: dict[str, ProviderConfig]
     agents: dict[Role, AgentConfig]
     max_tokens: dict[CallType, int]
     run: RunConfig = RunConfig()
+    sandbox: SandboxConfig = SandboxConfig()
     allow_duplicate_models: bool = False
 
     @model_validator(mode="after")

@@ -6,7 +6,9 @@ import argparse
 import sys
 from collections.abc import Sequence
 
+from quadcode.cli_sandbox import add_sandbox_commands
 from quadcode.config import ConfigError, load_config, load_secrets
+from quadcode.tables import format_table
 
 
 def _cmd_check_config(args: argparse.Namespace) -> int:
@@ -18,12 +20,7 @@ def _cmd_check_config(args: argparse.Namespace) -> int:
     secrets = load_secrets(config, env_file=args.env_file)
     rows = config.describe_agents()
     headers = ["role", "label", "provider", "kind", "model", "rpm", "tpm"]
-    table = [headers] + [[str(r[h]) for h in headers] for r in rows]
-    widths = [max(len(row[i]) for row in table) for i in range(len(headers))]
-    for i, row in enumerate(table):
-        print("  ".join(cell.ljust(widths[j]) for j, cell in enumerate(row)).rstrip())
-        if i == 0:
-            print("  ".join("-" * w for w in widths))
+    print(format_table(headers, [[str(r[h]) for h in headers] for r in rows]))
     print()
     for name, prov in config.providers.items():
         if prov.api_key_env:
@@ -41,6 +38,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
     check = sub.add_parser("check-config", help="validate config.yaml and show the agent slots")
     check.set_defaults(func=_cmd_check_config)
+    add_sandbox_commands(sub)
     return parser
 
 

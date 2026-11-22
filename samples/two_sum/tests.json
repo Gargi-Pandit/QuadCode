@@ -1,0 +1,127 @@
+[
+  {
+    "id": "T01",
+    "category": "normal",
+    "description": "basic",
+    "args": [
+      [
+        2,
+        7,
+        11,
+        15
+      ],
+      9
+    ],
+    "expected": [
+      0,
+      1
+    ]
+  },
+  {
+    "id": "T02",
+    "category": "normal",
+    "description": "unsorted input",
+    "args": [
+      [
+        3,
+        2,
+        4
+      ],
+      6
+    ],
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "id": "T03",
+    "category": "boundary",
+    "description": "duplicates",
+    "args": [
+      [
+        3,
+        3
+      ],
+      6
+    ],
+    "expected": [
+      0,
+      1
+    ]
+  },
+  {
+    "id": "T04",
+    "category": "boundary",
+    "description": "empty list",
+    "args": [
+      [],
+      1
+    ],
+    "expected": []
+  },
+  {
+    "id": "T05",
+    "category": "boundary",
+    "description": "single element",
+    "args": [
+      [
+        5
+      ],
+      10
+    ],
+    "expected": []
+  },
+  {
+    "id": "T06",
+    "category": "boundary",
+    "description": "negatives and zero target",
+    "args": [
+      [
+        -3,
+        4,
+        3,
+        90
+      ],
+      0
+    ],
+    "expected": [
+      0,
+      2
+    ]
+  },
+  {
+    "id": "T07",
+    "category": "adversarial",
+    "description": "no solution",
+    "args": [
+      [
+        1,
+        2,
+        3
+      ],
+      100
+    ],
+    "expected": []
+  },
+  {
+    "id": "T08",
+    "category": "adversarial",
+    "description": "None input",
+    "args": [
+      null,
+      1
+    ],
+    "expect_exception": "TypeError"
+  },
+  {
+    "id": "T09",
+    "category": "performance",
+    "description": "20000 ascending ints, pair at the end",
+    "generator": "([list(range(20000)), 39997], {})",
+    "expected": [
+      19998,
+      19999
+    ]
+  }
+]

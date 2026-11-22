@@ -232,9 +232,79 @@ class TestResult(_Frozen):
     status: TestStatus
     actual: Any = None
     error: str | None = None
-    runtime_s: float | None = None
-    peak_memory_bytes: int | None = None
+    runtime_s: float | None = Field(default=None, description="Median of runtimes_s.")
+    runtimes_s: list[float] = Field(default_factory=list, description="Every timed run, warmup excluded.")
+    peak_memory_bytes: int | None = Field(default=None, description="Python heap peak (tracemalloc), one run.")
     measured: bool = Field(description="True only if the value came from real execution.")
+    truncated: bool = Field(default=False, description="'actual' was shortened for storage.")
+    non_json: bool = Field(default=False, description="The return value had non-JSON parts, stored as repr.")
+
+
+SandboxBackendKind = Literal["docker", "subprocess", "none"]
+
+
+class SuiteRun(_Frozen):
+    """One execution of a test suite against one code version inside the sandbox."""
+
+    version: str
+    language: str
+    entry_point: str
+    backend: SandboxBackendKind
+    executed: bool
+    not_executed_reason: str | None = None
+    isolation_warning: str | None = None
+    sandbox_env: dict[str, Any] = Field(
+        default_factory=dict, description="Interpreter and platform as reported from inside the sandbox."
+    )
+    method: str = ""
+    repeats: int = Field(ge=1)
+    warmup: int = Field(ge=0)
+    seed: int = 0
+    results: list[TestResult] = Field(default_factory=list)
+    wall_time_s: float | None = None
+    exit_code: int | None = None
+    timed_out: bool = False
+    output_truncated: bool = False
+    stderr_tail: str = ""
+    max_rss_kb: int | None = Field(default=None, description="Process peak RSS (getrusage) inside the sandbox.")
+    started_at: str = Field(default_factory=utc_now)
+
+    def count(self, status: TestStatus) -> int:
+        return sum(1 for r in self.results if r.status == status)
+
+    @property
+    def all_passed(self) -> bool:
+        return self.executed and bool(self.results) and all(r.status == TestStatus.PASS for r in self.results)
+
+
+class BenchmarkStats(_Frozen):
+    """Summary statistics of repeated timed runs of one test against one version."""
+
+    version: str
+    test_id: str
+    status: TestStatus
+    repeats: int = Field(ge=0)
+    runtimes_s: list[float]
+    median_s: float
+    min_s: float
+    max_s: float
+    mean_s: float
+    stdev_s: float | None = None
+    peak_memory_bytes: int | None = None
+    measured: bool = True
+
+
+class BenchmarkReport(_Frozen):
+    backend: SandboxBackendKind
+    isolation_warning: str | None = None
+    method: str
+    repeats: int = Field(ge=1)
+    warmup: int = Field(ge=0)
+    seed: int
+    order: list[str] = Field(description="Version labels in the order they were executed.")
+    suites: list[SuiteRun]
+    stats: list[BenchmarkStats]
+    started_at: str = Field(default_factory=utc_now)
 
 
 class CallRecord(_Frozen):

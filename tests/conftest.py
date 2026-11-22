@@ -11,14 +11,16 @@ from typing import Any
 import pytest
 
 from quadcode.cache import DiskCache
-from quadcode.config import AppConfig, Secrets, parse_config
+from quadcode.config import AppConfig, SandboxConfig, Secrets, parse_config
 from quadcode.gateway import CallBudget, LLMGateway
 from quadcode.providers.base import LLMClient
 from quadcode.providers.mock import MockProvider, MockScenario
 from quadcode.providers.mock_scenarios import get_scenario
 from quadcode.ratelimit import build_limiters
 from quadcode.runlog import RunLog
-from quadcode.schemas import Role
+from quadcode.sandbox import SubprocessSandbox
+from quadcode.schemas import Role, TestCase
+from quadcode.testing import load_test_cases
 
 BASE_CONFIG: dict[str, Any] = {
     "providers": {
@@ -100,3 +102,26 @@ def make_gateway(tmp_path: Path, app_config: AppConfig, clock: FakeClock) -> Gat
         )
 
     return factory
+
+
+# ---------------------------------------------------------------- sandbox fixtures
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SAMPLES = REPO_ROOT / "samples" / "two_sum"
+
+
+@pytest.fixture
+def sandbox_cfg() -> SandboxConfig:
+    """Small limits so hostile cases finish fast."""
+    return SandboxConfig(backend="subprocess", test_timeout_s=1.0, wall_timeout_s=20.0,
+                         test_repeats=2, benchmark_repeats=3, warmup=1)
+
+
+@pytest.fixture
+def subprocess_sandbox(sandbox_cfg: SandboxConfig) -> SubprocessSandbox:
+    return SubprocessSandbox(sandbox_cfg)
+
+
+@pytest.fixture
+def two_sum_tests() -> list[TestCase]:
+    return load_test_cases(SAMPLES / "tests.json")

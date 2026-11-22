@@ -67,6 +67,26 @@ max_tokens:
   modify: 1500
   challenge: 600
 
+# Execution of generated code. "auto" uses Docker only if the daemon answers and docker_image
+# is already present locally (it is never pulled automatically); otherwise it falls back to a
+# resource-limited subprocess and every result carries a weaker-isolation warning.
+sandbox:
+  backend: auto
+  docker_image: python:3.12-slim
+  memory_mb: 512
+  cpus: 1.0
+  pids_limit: 64
+  test_timeout_s: 5        # per call of the entry point
+  wall_timeout_s: 120      # whole sandbox process
+  test_repeats: 3          # timed runs per test during suite runs
+  benchmark_repeats: 7     # timed runs per test during final benchmarks
+  warmup: 1
+  max_output_bytes: 8000000
+  max_actual_chars: 2000
+  float_rel_tol: 1.0e-9
+  float_abs_tol: 1.0e-9
+  seed: 0
+
 run:
   rounds: 3
   parallel: true

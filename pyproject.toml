@@ -25,3 +25,6 @@ include = ["quadcode*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = [
+    "docker: needs a reachable Docker daemon and the configured sandbox image (skipped otherwise)",
+]

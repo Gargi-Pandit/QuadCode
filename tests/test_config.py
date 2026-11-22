@@ -121,3 +121,22 @@ def test_cli_check_config(tmp_path: Path, capsys: pytest.CaptureFixture[str], co
     config_dict["run"]["rounds"] = 9
     bad.write_text(yaml.safe_dump(config_dict))
     assert main(["--config", str(bad), "check-config"]) == 2
+
+
+def test_sandbox_defaults_when_block_missing(config_dict: dict[str, Any]) -> None:
+    config_dict.pop("sandbox", None)
+    cfg = parse_config(config_dict)
+    assert cfg.sandbox.backend == "auto"
+    assert cfg.sandbox.docker_image == "python:3.12-slim"
+
+
+def test_sandbox_rejects_unknown_backend(config_dict: dict[str, Any]) -> None:
+    config_dict["sandbox"] = {"backend": "chroot"}
+    with pytest.raises(ConfigError):
+        parse_config(config_dict)
+
+
+def test_repo_config_sandbox_block() -> None:
+    cfg = load_config(REPO_ROOT / "config.yaml")
+    assert cfg.sandbox.test_timeout_s == 5
+    assert cfg.sandbox.benchmark_repeats == 7
