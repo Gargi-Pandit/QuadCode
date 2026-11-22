@@ -1,0 +1,330 @@
+[
+ {
+  "id": "H01",
+  "category": "normal",
+  "description": "classic",
+  "hidden": true,
+  "args": [
+   [
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     6
+    ],
+    [
+     8,
+     10
+    ],
+    [
+     15,
+     18
+    ]
+   ]
+  ],
+  "expected": [
+   [
+    1,
+    6
+   ],
+   [
+    8,
+    10
+   ],
+   [
+    15,
+    18
+   ]
+  ]
+ },
+ {
+  "id": "H02",
+  "category": "boundary",
+  "description": "touching intervals merge",
+  "hidden": true,
+  "args": [
+   [
+    [
+     1,
+     4
+    ],
+    [
+     4,
+     5
+    ]
+   ]
+  ],
+  "expected": [
+   [
+    1,
+    5
+   ]
+  ]
+ },
+ {
+  "id": "H03",
+  "category": "normal",
+  "description": "unsorted input",
+  "hidden": true,
+  "args": [
+   [
+    [
+     8,
+     10
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     6
+    ]
+   ]
+  ],
+  "expected": [
+   [
+    1,
+    6
+   ],
+   [
+    8,
+    10
+   ]
+  ]
+ },
+ {
+  "id": "H04",
+  "category": "boundary",
+  "description": "empty",
+  "hidden": true,
+  "args": [
+   []
+  ],
+  "expected": []
+ },
+ {
+  "id": "H05",
+  "category": "boundary",
+  "description": "single point interval",
+  "hidden": true,
+  "args": [
+   [
+    [
+     5,
+     5
+    ]
+   ]
+  ],
+  "expected": [
+   [
+    5,
+    5
+   ]
+  ]
+ },
+ {
+  "id": "H06",
+  "category": "normal",
+  "description": "contained intervals",
+  "hidden": true,
+  "args": [
+   [
+    [
+     1,
+     10
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     4,
+     5
+    ]
+   ]
+  ],
+  "expected": [
+   [
+    1,
+    10
+   ]
+  ]
+ },
+ {
+  "id": "H07",
+  "category": "boundary",
+  "description": "negative values",
+  "hidden": true,
+  "args": [
+   [
+    [
+     -5,
+     -1
+    ],
+    [
+     -3,
+     2
+    ],
+    [
+     3,
+     4
+    ]
+   ]
+  ],
+  "expected": [
+   [
+    -5,
+    2
+   ],
+   [
+    3,
+    4
+   ]
+  ]
+ },
+ {
+  "id": "H08",
+  "category": "boundary",
+  "description": "duplicates",
+  "hidden": true,
+  "args": [
+   [
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ]
+  ],
+  "expected": [
+   [
+    1,
+    2
+   ]
+  ]
+ },
+ {
+  "id": "H09",
+  "category": "adversarial",
+  "description": "gap of one stays separate",
+  "hidden": true,
+  "args": [
+   [
+    [
+     1,
+     2
+    ],
+    [
+     3,
+     4
+    ]
+   ]
+  ],
+  "expected": [
+   [
+    1,
+    2
+   ],
+   [
+    3,
+    4
+   ]
+  ]
+ },
+ {
+  "id": "H10",
+  "category": "adversarial",
+  "description": "touching chain, unsorted",
+  "hidden": true,
+  "args": [
+   [
+    [
+     3,
+     4
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     3
+    ]
+   ]
+  ],
+  "expected": [
+   [
+    1,
+    4
+   ]
+  ]
+ },
+ {
+  "id": "H11",
+  "category": "adversarial",
+  "description": "later interval extends the first",
+  "hidden": true,
+  "args": [
+   [
+    [
+     1,
+     4
+    ],
+    [
+     0,
+     0
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     4,
+     7
+    ]
+   ]
+  ],
+  "expected": [
+   [
+    0,
+    0
+   ],
+   [
+    1,
+    7
+   ]
+  ]
+ },
+ {
+  "id": "H12",
+  "category": "performance",
+  "description": "1e5 shuffled overlapping intervals",
+  "hidden": true,
+  "generator": "([[[i, i + 2] for i in rng.sample(range(100000), 100000)]], {})",
+  "expected": [
+   [
+    0,
+    100001
+   ]
+  ]
+ },
+ {
+  "id": "H13",
+  "category": "performance",
+  "description": "1e5 touching unit intervals, reversed",
+  "hidden": true,
+  "generator": "([[[i, i + 1] for i in range(99999, -1, -1)]], {})",
+  "expected": [
+   [
+    0,
+    100000
+   ]
+  ]
+ }
+]

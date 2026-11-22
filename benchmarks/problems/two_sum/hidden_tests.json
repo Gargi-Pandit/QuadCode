@@ -1,0 +1,208 @@
+[
+ {
+  "id": "H01",
+  "category": "normal",
+  "description": "basic",
+  "hidden": true,
+  "args": [
+   [
+    2,
+    7,
+    11,
+    15
+   ],
+   9
+  ],
+  "expected": [
+   0,
+   1
+  ]
+ },
+ {
+  "id": "H02",
+  "category": "normal",
+  "description": "unsorted",
+  "hidden": true,
+  "args": [
+   [
+    3,
+    2,
+    4
+   ],
+   6
+  ],
+  "expected": [
+   1,
+   2
+  ]
+ },
+ {
+  "id": "H03",
+  "category": "boundary",
+  "description": "duplicate values",
+  "hidden": true,
+  "args": [
+   [
+    3,
+    3
+   ],
+   6
+  ],
+  "expected": [
+   0,
+   1
+  ]
+ },
+ {
+  "id": "H04",
+  "category": "boundary",
+  "description": "empty list",
+  "hidden": true,
+  "args": [
+   [],
+   1
+  ],
+  "expected": []
+ },
+ {
+  "id": "H05",
+  "category": "boundary",
+  "description": "single element",
+  "hidden": true,
+  "args": [
+   [
+    5
+   ],
+   10
+  ],
+  "expected": []
+ },
+ {
+  "id": "H06",
+  "category": "boundary",
+  "description": "negatives, zero target",
+  "hidden": true,
+  "args": [
+   [
+    -3,
+    4,
+    3,
+    90
+   ],
+   0
+  ],
+  "expected": [
+   0,
+   2
+  ]
+ },
+ {
+  "id": "H07",
+  "category": "adversarial",
+  "description": "no pair",
+  "hidden": true,
+  "args": [
+   [
+    1,
+    2,
+    3
+   ],
+   100
+  ],
+  "expected": []
+ },
+ {
+  "id": "H08",
+  "category": "adversarial",
+  "description": "smallest j wins",
+  "hidden": true,
+  "args": [
+   [
+    2,
+    5,
+    3,
+    3,
+    1
+   ],
+   6
+  ],
+  "expected": [
+   2,
+   3
+  ]
+ },
+ {
+  "id": "H09",
+  "category": "adversarial",
+  "description": "smallest i for that j",
+  "hidden": true,
+  "args": [
+   [
+    1,
+    1,
+    2
+   ],
+   3
+  ],
+  "expected": [
+   0,
+   2
+  ]
+ },
+ {
+  "id": "H10",
+  "category": "adversarial",
+  "description": "a value is not paired with itself",
+  "hidden": true,
+  "args": [
+   [
+    3,
+    4,
+    2
+   ],
+   6
+  ],
+  "expected": [
+   1,
+   2
+  ]
+ },
+ {
+  "id": "H11",
+  "category": "boundary",
+  "description": "zeros",
+  "hidden": true,
+  "args": [
+   [
+    0,
+    4,
+    3,
+    0
+   ],
+   0
+  ],
+  "expected": [
+   0,
+   3
+  ]
+ },
+ {
+  "id": "H12",
+  "category": "performance",
+  "description": "1e5 ascending ints, pair at the end",
+  "hidden": true,
+  "generator": "([list(range(100000)), 199997], {})",
+  "expected": [
+   99998,
+   99999
+  ]
+ },
+ {
+  "id": "H13",
+  "category": "performance",
+  "description": "1e5 values, no pair",
+  "hidden": true,
+  "generator": "([[2 * i for i in range(100000)], 1], {})",
+  "expected": []
+ }
+]

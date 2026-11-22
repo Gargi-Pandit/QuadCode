@@ -1,0 +1,4 @@
+entry_point: merge_intervals
+language: python
+mock_scenario: merge_intervals
+source: written for QuadCode; hidden tests are never shown to agents

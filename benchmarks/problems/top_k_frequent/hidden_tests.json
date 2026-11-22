@@ -1,0 +1,210 @@
+[
+ {
+  "id": "H01",
+  "category": "normal",
+  "description": "classic",
+  "hidden": true,
+  "args": [
+   [
+    "i",
+    "love",
+    "leetcode",
+    "i",
+    "love",
+    "coding"
+   ],
+   2
+  ],
+  "expected": [
+   "i",
+   "love"
+  ]
+ },
+ {
+  "id": "H02",
+  "category": "normal",
+  "description": "four of them",
+  "hidden": true,
+  "args": [
+   [
+    "the",
+    "day",
+    "is",
+    "sunny",
+    "the",
+    "the",
+    "the",
+    "sunny",
+    "is",
+    "is"
+   ],
+   4
+  ],
+  "expected": [
+   "the",
+   "is",
+   "sunny",
+   "day"
+  ]
+ },
+ {
+  "id": "H03",
+  "category": "boundary",
+  "description": "empty input",
+  "hidden": true,
+  "args": [
+   [],
+   3
+  ],
+  "expected": []
+ },
+ {
+  "id": "H04",
+  "category": "boundary",
+  "description": "single word",
+  "hidden": true,
+  "args": [
+   [
+    "a"
+   ],
+   1
+  ],
+  "expected": [
+   "a"
+  ]
+ },
+ {
+  "id": "H05",
+  "category": "adversarial",
+  "description": "all tied",
+  "hidden": true,
+  "args": [
+   [
+    "b",
+    "a",
+    "c"
+   ],
+   2
+  ],
+  "expected": [
+   "a",
+   "b"
+  ]
+ },
+ {
+  "id": "H06",
+  "category": "boundary",
+  "description": "k larger than distinct count",
+  "hidden": true,
+  "args": [
+   [
+    "a",
+    "b",
+    "a"
+   ],
+   5
+  ],
+  "expected": [
+   "a",
+   "b"
+  ]
+ },
+ {
+  "id": "H07",
+  "category": "boundary",
+  "description": "k is zero",
+  "hidden": true,
+  "args": [
+   [
+    "a",
+    "b"
+   ],
+   0
+  ],
+  "expected": []
+ },
+ {
+  "id": "H08",
+  "category": "adversarial",
+  "description": "upper case sorts first",
+  "hidden": true,
+  "args": [
+   [
+    "b",
+    "B",
+    "a",
+    "A"
+   ],
+   4
+  ],
+  "expected": [
+   "A",
+   "B",
+   "a",
+   "b"
+  ]
+ },
+ {
+  "id": "H09",
+  "category": "normal",
+  "description": "tie at the cut",
+  "hidden": true,
+  "args": [
+   [
+    "x",
+    "y",
+    "x",
+    "y",
+    "z"
+   ],
+   2
+  ],
+  "expected": [
+   "x",
+   "y"
+  ]
+ },
+ {
+  "id": "H10",
+  "category": "adversarial",
+  "description": "string order, not numeric",
+  "hidden": true,
+  "args": [
+   [
+    "w10",
+    "w9",
+    "w10",
+    "w9",
+    "w2"
+   ],
+   2
+  ],
+  "expected": [
+   "w10",
+   "w9"
+  ]
+ },
+ {
+  "id": "H11",
+  "category": "performance",
+  "description": "2e5 words, 1000 tied",
+  "hidden": true,
+  "generator": "([[f'w{i % 1000}' for i in range(200000)], 3], {})",
+  "expected": [
+   "w0",
+   "w1",
+   "w10"
+  ]
+ },
+ {
+  "id": "H12",
+  "category": "performance",
+  "description": "125250 words, distinct counts",
+  "hidden": true,
+  "generator": "([[f'w{j}' for j in range(500) for _ in range(j + 1)], 2], {})",
+  "expected": [
+   "w499",
+   "w498"
+  ]
+ }
+]

@@ -1,0 +1,4 @@
+entry_point: lis_length
+language: python
+mock_scenario: lis_length
+source: written for QuadCode; hidden tests are never shown to agents

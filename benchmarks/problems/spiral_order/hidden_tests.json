@@ -1,0 +1,344 @@
+[
+ {
+  "id": "H01",
+  "category": "normal",
+  "description": "3x3",
+  "hidden": true,
+  "args": [
+   [
+    [
+     1,
+     2,
+     3
+    ],
+    [
+     4,
+     5,
+     6
+    ],
+    [
+     7,
+     8,
+     9
+    ]
+   ]
+  ],
+  "expected": [
+   1,
+   2,
+   3,
+   6,
+   9,
+   8,
+   7,
+   4,
+   5
+  ]
+ },
+ {
+  "id": "H02",
+  "category": "normal",
+  "description": "3x4",
+  "hidden": true,
+  "args": [
+   [
+    [
+     1,
+     2,
+     3,
+     4
+    ],
+    [
+     5,
+     6,
+     7,
+     8
+    ],
+    [
+     9,
+     10,
+     11,
+     12
+    ]
+   ]
+  ],
+  "expected": [
+   1,
+   2,
+   3,
+   4,
+   8,
+   12,
+   11,
+   10,
+   9,
+   5,
+   6,
+   7
+  ]
+ },
+ {
+  "id": "H03",
+  "category": "boundary",
+  "description": "no rows",
+  "hidden": true,
+  "args": [
+   []
+  ],
+  "expected": []
+ },
+ {
+  "id": "H04",
+  "category": "boundary",
+  "description": "one empty row",
+  "hidden": true,
+  "args": [
+   [
+    []
+   ]
+  ],
+  "expected": []
+ },
+ {
+  "id": "H05",
+  "category": "boundary",
+  "description": "1x1",
+  "hidden": true,
+  "args": [
+   [
+    [
+     1
+    ]
+   ]
+  ],
+  "expected": [
+   1
+  ]
+ },
+ {
+  "id": "H06",
+  "category": "boundary",
+  "description": "single row",
+  "hidden": true,
+  "args": [
+   [
+    [
+     1,
+     2,
+     3
+    ]
+   ]
+  ],
+  "expected": [
+   1,
+   2,
+   3
+  ]
+ },
+ {
+  "id": "H07",
+  "category": "boundary",
+  "description": "single column",
+  "hidden": true,
+  "args": [
+   [
+    [
+     1
+    ],
+    [
+     2
+    ],
+    [
+     3
+    ]
+   ]
+  ],
+  "expected": [
+   1,
+   2,
+   3
+  ]
+ },
+ {
+  "id": "H08",
+  "category": "normal",
+  "description": "2x2",
+  "hidden": true,
+  "args": [
+   [
+    [
+     1,
+     2
+    ],
+    [
+     3,
+     4
+    ]
+   ]
+  ],
+  "expected": [
+   1,
+   2,
+   4,
+   3
+  ]
+ },
+ {
+  "id": "H09",
+  "category": "adversarial",
+  "description": "3x2",
+  "hidden": true,
+  "args": [
+   [
+    [
+     1,
+     2
+    ],
+    [
+     3,
+     4
+    ],
+    [
+     5,
+     6
+    ]
+   ]
+  ],
+  "expected": [
+   1,
+   2,
+   4,
+   6,
+   5,
+   3
+  ]
+ },
+ {
+  "id": "H10",
+  "category": "normal",
+  "description": "4x4",
+  "hidden": true,
+  "args": [
+   [
+    [
+     1,
+     2,
+     3,
+     4
+    ],
+    [
+     5,
+     6,
+     7,
+     8
+    ],
+    [
+     9,
+     10,
+     11,
+     12
+    ],
+    [
+     13,
+     14,
+     15,
+     16
+    ]
+   ]
+  ],
+  "expected": [
+   1,
+   2,
+   3,
+   4,
+   8,
+   12,
+   16,
+   15,
+   14,
+   13,
+   9,
+   5,
+   6,
+   7,
+   11,
+   10
+  ]
+ },
+ {
+  "id": "H11",
+  "category": "adversarial",
+  "description": "2x4 with negatives",
+  "hidden": true,
+  "args": [
+   [
+    [
+     -1,
+     -2,
+     -3,
+     -4
+    ],
+    [
+     5,
+     6,
+     7,
+     8
+    ]
+   ]
+  ],
+  "expected": [
+   -1,
+   -2,
+   -3,
+   -4,
+   8,
+   7,
+   6,
+   5
+  ]
+ },
+ {
+  "id": "H12",
+  "category": "adversarial",
+  "description": "4x1 then inner column",
+  "hidden": true,
+  "args": [
+   [
+    [
+     1,
+     2,
+     3
+    ],
+    [
+     4,
+     5,
+     6
+    ],
+    [
+     7,
+     8,
+     9
+    ],
+    [
+     10,
+     11,
+     12
+    ]
+   ]
+  ],
+  "expected": [
+   1,
+   2,
+   3,
+   6,
+   9,
+   12,
+   11,
+   10,
+   7,
+   4,
+   5,
+   8
+  ]
+ }
+]

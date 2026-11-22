@@ -1,0 +1,128 @@
+[
+ {
+  "id": "H01",
+  "category": "normal",
+  "description": "classic",
+  "hidden": true,
+  "args": [
+   "abcabcbb"
+  ],
+  "expected": 3
+ },
+ {
+  "id": "H02",
+  "category": "normal",
+  "description": "one repeated letter",
+  "hidden": true,
+  "args": [
+   "bbbbb"
+  ],
+  "expected": 1
+ },
+ {
+  "id": "H03",
+  "category": "normal",
+  "description": "answer in the middle",
+  "hidden": true,
+  "args": [
+   "pwwkew"
+  ],
+  "expected": 3
+ },
+ {
+  "id": "H04",
+  "category": "boundary",
+  "description": "empty",
+  "hidden": true,
+  "args": [
+   ""
+  ],
+  "expected": 0
+ },
+ {
+  "id": "H05",
+  "category": "boundary",
+  "description": "single char",
+  "hidden": true,
+  "args": [
+   "a"
+  ],
+  "expected": 1
+ },
+ {
+  "id": "H06",
+  "category": "adversarial",
+  "description": "window must not move left",
+  "hidden": true,
+  "args": [
+   "abba"
+  ],
+  "expected": 2
+ },
+ {
+  "id": "H07",
+  "category": "adversarial",
+  "description": "restart after repeat",
+  "hidden": true,
+  "args": [
+   "dvdf"
+  ],
+  "expected": 3
+ },
+ {
+  "id": "H08",
+  "category": "boundary",
+  "description": "single space",
+  "hidden": true,
+  "args": [
+   " "
+  ],
+  "expected": 1
+ },
+ {
+  "id": "H09",
+  "category": "adversarial",
+  "description": "repeat far back",
+  "hidden": true,
+  "args": [
+   "tmmzuxt"
+  ],
+  "expected": 5
+ },
+ {
+  "id": "H10",
+  "category": "boundary",
+  "description": "case-sensitive",
+  "hidden": true,
+  "args": [
+   "aAaA"
+  ],
+  "expected": 2
+ },
+ {
+  "id": "H11",
+  "category": "boundary",
+  "description": "non-ASCII",
+  "hidden": true,
+  "args": [
+   "ñaña"
+  ],
+  "expected": 2
+ },
+ {
+  "id": "H12",
+  "category": "performance",
+  "description": "1e5 chars, alphabet repeated",
+  "hidden": true,
+  "generator": "(['abcdefghijklmnopqrstuvwxyz' * 3847], {})",
+  "expected": 26
+ },
+ {
+  "id": "H13",
+  "category": "performance",
+  "description": "20000 distinct characters",
+  "hidden": true,
+  "generator": "([''.join(chr(0x4E00 + i) for i in range(20000))], {})",
+  "expected": 20000
+ }
+]

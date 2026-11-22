@@ -1,0 +1,4 @@
+entry_point: two_sum
+language: python
+mock_scenario: two_sum
+source: written for QuadCode; hidden tests are never shown to agents

@@ -1,0 +1,128 @@
+[
+ {
+  "id": "H01",
+  "category": "normal",
+  "description": "simple pair",
+  "hidden": true,
+  "args": [
+   "()"
+  ],
+  "expected": true
+ },
+ {
+  "id": "H02",
+  "category": "normal",
+  "description": "mixed nesting",
+  "hidden": true,
+  "args": [
+   "{[()()]}"
+  ],
+  "expected": true
+ },
+ {
+  "id": "H03",
+  "category": "normal",
+  "description": "wrong closer",
+  "hidden": true,
+  "args": [
+   "(]"
+  ],
+  "expected": false
+ },
+ {
+  "id": "H04",
+  "category": "adversarial",
+  "description": "crossed pairs",
+  "hidden": true,
+  "args": [
+   "([)]"
+  ],
+  "expected": false
+ },
+ {
+  "id": "H05",
+  "category": "boundary",
+  "description": "empty string",
+  "hidden": true,
+  "args": [
+   ""
+  ],
+  "expected": true
+ },
+ {
+  "id": "H06",
+  "category": "boundary",
+  "description": "no brackets",
+  "hidden": true,
+  "args": [
+   "hello"
+  ],
+  "expected": true
+ },
+ {
+  "id": "H07",
+  "category": "normal",
+  "description": "other characters ignored",
+  "hidden": true,
+  "args": [
+   "a(b)c[d]{e}"
+  ],
+  "expected": true
+ },
+ {
+  "id": "H08",
+  "category": "adversarial",
+  "description": "unclosed",
+  "hidden": true,
+  "args": [
+   "(("
+  ],
+  "expected": false
+ },
+ {
+  "id": "H09",
+  "category": "adversarial",
+  "description": "closer first",
+  "hidden": true,
+  "args": [
+   "))"
+  ],
+  "expected": false
+ },
+ {
+  "id": "H10",
+  "category": "adversarial",
+  "description": "reversed pair",
+  "hidden": true,
+  "args": [
+   "}{"
+  ],
+  "expected": false
+ },
+ {
+  "id": "H11",
+  "category": "adversarial",
+  "description": "one extra closer at the end",
+  "hidden": true,
+  "args": [
+   "()[]{}}"
+  ],
+  "expected": false
+ },
+ {
+  "id": "H12",
+  "category": "performance",
+  "description": "1e5 nested",
+  "hidden": true,
+  "generator": "(['(' * 50000 + ')' * 50000], {})",
+  "expected": true
+ },
+ {
+  "id": "H13",
+  "category": "performance",
+  "description": "1e5 openers",
+  "hidden": true,
+  "generator": "(['[' * 100000], {})",
+  "expected": false
+ }
+]

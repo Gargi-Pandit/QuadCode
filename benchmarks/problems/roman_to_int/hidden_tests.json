@@ -1,0 +1,132 @@
+[
+ {
+  "id": "H01",
+  "category": "normal",
+  "description": "three",
+  "hidden": true,
+  "args": [
+   "III"
+  ],
+  "expected": 3
+ },
+ {
+  "id": "H02",
+  "category": "boundary",
+  "description": "subtractive IV",
+  "hidden": true,
+  "args": [
+   "IV"
+  ],
+  "expected": 4
+ },
+ {
+  "id": "H03",
+  "category": "boundary",
+  "description": "subtractive IX",
+  "hidden": true,
+  "args": [
+   "IX"
+  ],
+  "expected": 9
+ },
+ {
+  "id": "H04",
+  "category": "normal",
+  "description": "mixed",
+  "hidden": true,
+  "args": [
+   "LVIII"
+  ],
+  "expected": 58
+ },
+ {
+  "id": "H05",
+  "category": "normal",
+  "description": "several subtractive forms",
+  "hidden": true,
+  "args": [
+   "MCMXCIV"
+  ],
+  "expected": 1994
+ },
+ {
+  "id": "H06",
+  "category": "boundary",
+  "description": "largest",
+  "hidden": true,
+  "args": [
+   "MMMCMXCIX"
+  ],
+  "expected": 3999
+ },
+ {
+  "id": "H07",
+  "category": "boundary",
+  "description": "smallest",
+  "hidden": true,
+  "args": [
+   "I"
+  ],
+  "expected": 1
+ },
+ {
+  "id": "H08",
+  "category": "normal",
+  "description": "forty",
+  "hidden": true,
+  "args": [
+   "XL"
+  ],
+  "expected": 40
+ },
+ {
+  "id": "H09",
+  "category": "normal",
+  "description": "ninety",
+  "hidden": true,
+  "args": [
+   "XC"
+  ],
+  "expected": 90
+ },
+ {
+  "id": "H10",
+  "category": "normal",
+  "description": "four hundred",
+  "hidden": true,
+  "args": [
+   "CD"
+  ],
+  "expected": 400
+ },
+ {
+  "id": "H11",
+  "category": "normal",
+  "description": "nine hundred",
+  "hidden": true,
+  "args": [
+   "CM"
+  ],
+  "expected": 900
+ },
+ {
+  "id": "H12",
+  "category": "normal",
+  "description": "year",
+  "hidden": true,
+  "args": [
+   "MMXXVI"
+  ],
+  "expected": 2026
+ },
+ {
+  "id": "H13",
+  "category": "adversarial",
+  "description": "long additive run",
+  "hidden": true,
+  "args": [
+   "DCCCLXXXVIII"
+  ],
+  "expected": 888
+ }
+]

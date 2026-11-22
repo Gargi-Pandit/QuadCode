@@ -1,0 +1,128 @@
+[
+ {
+  "id": "H01",
+  "category": "normal",
+  "description": "kitten/sitting",
+  "hidden": true,
+  "args": [
+   "kitten",
+   "sitting"
+  ],
+  "expected": 3
+ },
+ {
+  "id": "H02",
+  "category": "normal",
+  "description": "flaw/lawn",
+  "hidden": true,
+  "args": [
+   "flaw",
+   "lawn"
+  ],
+  "expected": 2
+ },
+ {
+  "id": "H03",
+  "category": "boundary",
+  "description": "both empty",
+  "hidden": true,
+  "args": [
+   "",
+   ""
+  ],
+  "expected": 0
+ },
+ {
+  "id": "H04",
+  "category": "boundary",
+  "description": "first empty",
+  "hidden": true,
+  "args": [
+   "",
+   "abc"
+  ],
+  "expected": 3
+ },
+ {
+  "id": "H05",
+  "category": "boundary",
+  "description": "second empty",
+  "hidden": true,
+  "args": [
+   "abc",
+   ""
+  ],
+  "expected": 3
+ },
+ {
+  "id": "H06",
+  "category": "boundary",
+  "description": "equal",
+  "hidden": true,
+  "args": [
+   "abc",
+   "abc"
+  ],
+  "expected": 0
+ },
+ {
+  "id": "H07",
+  "category": "normal",
+  "description": "intention/execution",
+  "hidden": true,
+  "args": [
+   "intention",
+   "execution"
+  ],
+  "expected": 5
+ },
+ {
+  "id": "H08",
+  "category": "normal",
+  "description": "horse/ros",
+  "hidden": true,
+  "args": [
+   "horse",
+   "ros"
+  ],
+  "expected": 3
+ },
+ {
+  "id": "H09",
+  "category": "adversarial",
+  "description": "swap needs two edits",
+  "hidden": true,
+  "args": [
+   "ab",
+   "ba"
+  ],
+  "expected": 2
+ },
+ {
+  "id": "H10",
+  "category": "boundary",
+  "description": "case-sensitive",
+  "hidden": true,
+  "args": [
+   "A",
+   "a"
+  ],
+  "expected": 1
+ },
+ {
+  "id": "H11",
+  "category": "performance",
+  "description": "1000 vs 1000, all different",
+  "hidden": true,
+  "generator": "(['a' * 1000, 'b' * 1000], {})",
+  "expected": 1000
+ },
+ {
+  "id": "H12",
+  "category": "performance",
+  "description": "1000-char strings shifted by one",
+  "hidden": true,
+  "generator": "(['ab' * 500, 'ba' * 500], {})",
+  "expected": 2
+ }
+]

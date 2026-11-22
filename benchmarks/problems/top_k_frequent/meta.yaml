@@ -1,0 +1,3 @@
+entry_point: top_k_frequent
+language: python
+source: written for QuadCode; hidden tests are never shown to agents
