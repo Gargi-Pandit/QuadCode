@@ -94,3 +94,38 @@ Append-only. One entry per milestone.
 **Open issues**
 - The mock M-001/M-002 diffs are written against G1. If M4's V0 tie-break picks D1, they will not apply and will be recorded as rejected. M4 must settle the tie-break and keep the scenario consistent with it.
 - `# [role:M-xxx]` comments in the final code are left for phase 8 in M4. The provenance needed for them is in place.
+
+---
+
+## M4: Orchestrator, phases 1-8 in mock mode (2026-11-22)
+
+**Approved plan (short):** wire the existing parts into one orchestrator: one analysis call, four blind initial calls, local tests, one review call per agent, V0 chosen on evidence, optimization rounds with diffs applied and tested locally, challenge calls only for failing or contested proposals, decisions on evidence only, early stop, final benchmark, final solution with `# [role:M-xxx]` comments. Every step logged to `events.jsonl` and checkpointed in `state.json` for `--resume`; `--budget-calls` aborts gracefully. `quadcode solve ... --mock`.
+
+**Key decisions**
+- V0 and final choice use a filter cascade (`selection.py`): tests passed → runtime → memory → code size (stated as a size heuristic) → slot order (stated as an arbitrary tie-break). Security, readability and maintainability are reported as not measured.
+- Acceptance needs evidence: the diff applies, the candidate passes every test, no measured regression against the base, and the code is not AST-identical to the base (comment- or format-only changes are rejected, so rounds cannot be padded). Challenge verdicts are recorded and logged but never decide.
+- Challenge calls go to every non-proposer, only for failing proposals or contested ones (measured regression, or conflict with another passing proposal). An unavailable challenger is recorded as `unavailable`.
+- Several passing proposals are composed in id order and tested together. On a conflict or a failing combination they are added one at a time, and the one that breaks is rejected.
+- Modify prompts carry the current version once (calls are stateless, so the diff base has to be in the prompt), plus the Phase 3 review digest (round 1) or the previous round's accepted diff and rejected proposals (later rounds). Result tables sent to agents hold statuses and truncated errors, no timings, so prompts are deterministic and cacheable.
+- `state.json` stores every valid agent output, so resume never repeats a completed call even with the cache off. The config fingerprint ignores the `run` block and `sandbox.backend`, so budget, cache and backend can change on resume.
+- Exit codes: 0 completed, 1 unverified, 2 failed/usage error, 3 needs clarification, 4 aborted on budget.
+
+**Deviations from plan**
+- First real run picked D1 as V0: G1's three suite timings spanned 1.08-2.66 ms, so the 25% tolerance on a 3-run median was decided by noise (the 7-run benchmark shows G1 faster). Runtime comparisons are now noise-aware: a version counts as slower only if its median is beyond the tolerance AND its fastest run is slower than the other version's slowest run. With that, G1 and D1 tie on runtime and memory and G1 wins on size, so the scripted G1 diffs apply. Tests use a very large runtime tolerance so timing never decides there.
+- Extra modules `runctx.py` (shared run services) and the rename of prompt helpers to `results_table`/`suite_listing` (pytest would collect `test_*` names).
+- Mock challenge responses are keyed by `round-1:M-002`; the optimizer's M-001 challenge answer was dropped because M-001 is not contested. `MockProvider` now records requests (for the blindness test).
+- Run directory also holds `problem.md`, `config.json` (config snapshot, no secrets), `test_suite.json`, `benchmark.json`, `summary.json`, `state.json`.
+
+**Built**
+- `quadcode/`: `selection.py`, `prompts.py`, `agents.py`, `runstate.py`, `runctx.py`, `rounds.py`, `attribution.py`, `orchestrator.py`, `cli_solve.py`; `selection:` and `prompts:` blocks in config; `RunStatus`, `RunSummary`, `SelectionEvidence`, `CriterionStep`, `AgentAvailability` in schemas.
+- `samples/two_sum/problem.md`.
+- Mock two_sum run: validator unavailable in Phase 3; reviewer/optimizer disagree on C1; V0 = G1; validator recovers from one 429 in round 1; M-001 accepted into V1; M-002 rejected on T03 despite one accept verdict; round 2 accepts nothing → early stop; `final_solution.py` carries `# [reviewer:M-001]` and passes all 9 tests.
+
+**Tests:** `pytest`: 354 passed, 0 skipped, 0 failed (~105 s). New: selection, prompts (blindness, no vendor names, truncation), attribution (AST guard), state and agent pool, full two_sum run checked against its own logs, eight scenario variants (unappliable diff, comment-only change, compose conflict, memory regression, all agents unavailable, no test suite, clarification, analysis fallback), budget abort + resume at six budget points with the cache off, CLI.
+
+**Open issues**
+- The path where two proposals compose cleanly but fail together is implemented but not covered by a scenario (the conflict path is).
+- Acceptance requires the candidate to pass every test. On an unverified V0 (nothing passes), a partial fix cannot be accepted, and the run ends unverified with the failing tests listed.
+- Test expected values come from the validator agent and can be wrong. Tests failing on every initial version are flagged `suspect_tests` but kept. Hidden tests come with the evaluation harness.
+- Agents cannot withdraw a proposal yet: every record is decided in the round that created it, so nothing stays pending to withdraw.
+- No report yet (next milestone); `summary.json` and the CLI table are the only human-readable outputs.
