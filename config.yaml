@@ -87,6 +87,17 @@ sandbox:
   float_abs_tol: 1.0e-9
   seed: 0
 
+# Evidence comparisons. A difference inside a tolerance is a tie and decides nothing.
+selection:
+  runtime_tolerance: 0.25     # relative median-runtime difference treated as noise
+  memory_tolerance: 0.10      # relative peak-memory difference treated as noise
+  memory_floor_bytes: 4096    # absolute peak-memory difference always treated as noise
+
+# What agents are sent after the initial phase.
+prompts:
+  max_error_chars: 200        # failing-test output is truncated to this many characters
+  max_failing_tests: 5        # failing tests listed per version
+
 run:
   rounds: 3
   parallel: true

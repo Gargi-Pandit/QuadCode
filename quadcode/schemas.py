@@ -400,3 +400,66 @@ class RunEvent(_Frozen):
     kind: str
     role: Role | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
+
+
+# ---------------------------------------------------------------- orchestration
+
+
+class RunStatus(StrEnum):
+    RUNNING = "running"
+    COMPLETED = "completed"  # the final version passed every test of the suite
+    UNVERIFIED = "unverified"  # finished, but no version could be verified correct
+    NEEDS_CLARIFICATION = "needs_clarification"
+    ABORTED_BUDGET = "aborted_budget"
+    FAILED = "failed"
+
+
+class CriterionStep(_Frozen):
+    """One step of an evidence-based selection: which versions a criterion kept or dropped."""
+
+    criterion: str
+    measured: bool = Field(description="False if the criterion could not be evaluated from measurements.")
+    values: dict[str, float | int | None] = Field(default_factory=dict)
+    kept: list[str]
+    dropped: list[str] = Field(default_factory=list)
+    note: str = ""
+
+
+class SelectionEvidence(_Frozen):
+    purpose: str
+    candidates: list[str]
+    winner: str | None
+    steps: list[CriterionStep] = Field(default_factory=list)
+    not_measured: list[str] = Field(default_factory=list)
+    verified: bool = Field(description="The winner passed every test of the suite.")
+
+
+class AgentAvailability(_Frozen):
+    role: Role
+    label: str
+    provider: str
+    model: str
+    phase: str
+    status: AgentStatus
+    error: str | None = None
+
+
+class RunSummary(_Frozen):
+    run_id: str
+    status: RunStatus
+    problem_title: str | None = None
+    rounds_requested: int
+    rounds_run: int = 0
+    stop_reason: str = ""
+    reference_version: str | None = None
+    reference_source: str | None = None
+    final_version: str | None = None
+    final_file: str | None = None
+    final_verified: bool = False
+    accepted: list[str] = Field(default_factory=list)
+    rejected: list[str] = Field(default_factory=list)
+    unresolved: list[str] = Field(default_factory=list)
+    availability: list[AgentAvailability] = Field(default_factory=list)
+    sandbox_backend: str | None = None
+    isolation_warning: str | None = None
+    finished_at: str = Field(default_factory=utc_now)

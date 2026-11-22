@@ -92,12 +92,32 @@ class SandboxConfig(_Strict):
     seed: int = 0
 
 
+class SelectionConfig(_Strict):
+    """Tolerances for evidence-based comparisons. Differences inside a tolerance count as ties."""
+
+    runtime_tolerance: float = Field(default=0.25, ge=0, description="Relative runtime difference treated "
+                                     "as noise.")
+    memory_tolerance: float = Field(default=0.10, ge=0, description="Relative peak-memory difference treated "
+                                    "as noise.")
+    memory_floor_bytes: int = Field(default=4096, ge=0, description="Absolute peak-memory difference always "
+                                    "treated as noise.")
+
+
+class PromptConfig(_Strict):
+    """Size limits for what is sent to agents."""
+
+    max_error_chars: int = Field(default=200, ge=20, description="Failing-test output is truncated to this.")
+    max_failing_tests: int = Field(default=5, ge=1, description="Failing tests listed per version.")
+
+
 class AppConfig(_Strict):
     providers: dict[str, ProviderConfig]
     agents: dict[Role, AgentConfig]
     max_tokens: dict[CallType, int]
     run: RunConfig = RunConfig()
     sandbox: SandboxConfig = SandboxConfig()
+    selection: SelectionConfig = SelectionConfig()
+    prompts: PromptConfig = PromptConfig()
     allow_duplicate_models: bool = False
 
     @model_validator(mode="after")
