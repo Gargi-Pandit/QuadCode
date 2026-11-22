@@ -6,6 +6,7 @@ import argparse
 import sys
 from collections.abc import Sequence
 
+from quadcode.cli_bench import add_bench_commands
 from quadcode.cli_providers import add_provider_commands
 from quadcode.cli_report import add_report_command
 from quadcode.cli_sandbox import add_sandbox_commands
@@ -47,6 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_report_command(sub)
     add_sandbox_commands(sub)
     add_version_commands(sub)
+    add_bench_commands(sub)
     return parser
 
 
