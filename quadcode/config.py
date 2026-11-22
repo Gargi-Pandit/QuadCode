@@ -165,6 +165,34 @@ class ModelPrice(_Strict):
     output_per_mtok: float = Field(ge=0)
 
 
+RUN_CONDITION_NAMES = ("full", "no-review", "no-test-feedback", "no-optimizer")
+
+
+class EvaluationConfig(_Strict):
+    """Settings of ``quadcode bench``: which problems, which pipeline runs, and how results are summarized."""
+
+    problems_dir: str = "benchmarks/problems"
+    limit: int = Field(default=10, ge=1, description="Problems taken (in directory order) when none are named.")
+    conditions: list[str] = Field(
+        default_factory=lambda: list(RUN_CONDITION_NAMES),
+        description="Pipeline runs per problem. Single-agent baselines, the best-of-4 oracle and select-only "
+        "come from the full run at no extra cost.")
+    bootstrap_samples: int = Field(default=10000, ge=100)
+    confidence: float = Field(default=0.95, gt=0, lt=1)
+    seed: int = 0
+    benchmark_repeats: int | None = Field(default=None, ge=1, description="Timed runs per hidden test; "
+                                          "None uses sandbox.benchmark_repeats.")
+
+    @model_validator(mode="after")
+    def _check_conditions(self) -> EvaluationConfig:
+        unknown = [c for c in self.conditions if c not in RUN_CONDITION_NAMES]
+        if unknown:
+            raise ValueError(f"unknown evaluation conditions {unknown}; choose from {list(RUN_CONDITION_NAMES)}")
+        if "full" not in self.conditions:
+            raise ValueError("evaluation conditions must include 'full' (the baselines come from it)")
+        return self
+
+
 # Call types whose max_tokens entry may be omitted, with the cap used then.
 OPTIONAL_CAPS: dict[CallType, int] = {CallType.SMOKE: 512}
 
@@ -177,6 +205,7 @@ class AppConfig(_Strict):
     sandbox: SandboxConfig = SandboxConfig()
     selection: SelectionConfig = SelectionConfig()
     prompts: PromptConfig = PromptConfig()
+    evaluation: EvaluationConfig = EvaluationConfig()
     allow_duplicate_models: bool = False
     pricing: dict[str, ModelPrice] = Field(
         default_factory=dict, description="'<provider>/<model>' -> price. Reports show cost as not configured "

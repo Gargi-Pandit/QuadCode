@@ -240,6 +240,18 @@ pricing: {}
 #    input_per_mtok: 0.0
 #    output_per_mtok: 0.0
 
+# `quadcode bench`: hidden-test evaluation of the pipeline against single-agent baselines.
+# Single-agent baselines (each slot's blind initial solution), the best-of-4 oracle and select-only (V0)
+# come from the full run of each problem at no extra API cost. Every other condition is one more run.
+evaluation:
+  problems_dir: benchmarks/problems
+  limit: 10                  # problems taken in directory order when --problems is not given
+  conditions: [full, no-review, no-test-feedback, no-optimizer]
+  bootstrap_samples: 10000   # percentile bootstrap over problems
+  confidence: 0.95
+  seed: 0
+  benchmark_repeats: 3       # timed runs per hidden test (fewer than the final benchmark: many versions)
+
 run:
   rounds: 3
   state_output_limit: true   # tell the model its max_tokens so it fits its answer under the cap

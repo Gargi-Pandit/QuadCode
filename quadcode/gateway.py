@@ -153,7 +153,10 @@ class LLMGateway:
         run_dir: Path,
         budget_calls: int | None = None,
         cache_root: Path | None = None,
+        budget: CallBudget | None = None,
     ) -> LLMGateway:
+        """``budget`` shares one call budget across several gateways (the benchmark harness); it wins over
+        ``budget_calls``."""
         limits = {name: (p.rpm, p.tpm) for name, p in config.providers.items()}
         return cls(
             config=config,
@@ -161,7 +164,7 @@ class LLMGateway:
             limiters=build_limiters(limits),
             cache=DiskCache(cache_root or Path(config.run.cache_dir), enabled=config.run.cache_enabled),
             runlog=RunLog(run_dir),
-            budget=CallBudget(budget_calls if budget_calls is not None else config.run.budget_calls),
+            budget=budget or CallBudget(budget_calls if budget_calls is not None else config.run.budget_calls),
             secrets=secrets,
         )
 

@@ -96,11 +96,13 @@ def config_fingerprint(config: AppConfig) -> str:
     """Hash of everything that changes what agents are asked or how code is judged.
 
     The ``run`` block (rounds, budget, cache, parallelism, paths), the sandbox backend choice and
-    ``pricing`` (used only for report cost estimates) are excluded, so a run can be resumed with a
+    ``pricing`` (used only for report cost estimates) and ``evaluation`` (used only by the benchmark harness)
+    are excluded, so a run can be resumed with a
     different call budget, with the cache switched off, on another available backend or after
     prices were added.
     """
-    data = config.model_dump(mode="json", exclude={"run": True, "sandbox": {"backend"}, "pricing": True})
+    data = config.model_dump(mode="json", exclude={"run": True, "sandbox": {"backend"}, "pricing": True,
+                                                    "evaluation": True})
     # Settings added after runs already existed are left out while they hold their default, so
     # those runs stay resumable.
     for agent in data["agents"].values():
