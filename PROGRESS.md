@@ -205,3 +205,56 @@ Append-only. One entry per milestone.
 - The Anthropic client is tested offline only. The Gemini client never got a successful live reply (Google was overloaded all day).
 - A slot's fallback position is not kept across `--resume`. A repaired answer is cached under the repair prompt, so a rerun re-sends the original request.
 - `test_sandbox_docker.py::test_memory_cap_stops_bomb` is still occasionally flaky under load (from M5).
+
+---
+
+## M7: Evaluation harness and charts (2026-11-22)
+
+**Approved plan (short):** `quadcode bench` runs benchmark problems under several conditions and scores each on hidden tests the agents never see: four single-agent baselines, a best-of-4 oracle, select-only (V0), the full pipeline and three ablations (no-review, no-test-feedback, no-optimizer). Mean with 95% bootstrap CI, paired win/tie/loss vs the full pipeline, CSV + Markdown + matplotlib charts; `bench-report` rebuilds them with no API calls. Built and tested on mock; one small real run (3 problems, full only) after approval.
+
+**Key decisions**
+- Single-agent baselines are each slot's blind initial solution from the full run (zero extra calls); the summary states they shared one analysis call. The oracle picks the initial solution with most hidden tests passed and is labeled an upper bound, not a system.
+- Ablations are an `Ablation` stored in `RunState` (kept on resume, shown in run_started, summary.json and the report). no-optimizer excludes the slot from every phase and logs it as `excluded`, never as unavailable. no-test-feedback removes result tables, failing-test text and test-quoting rejection reasons from prompts; decisions still use the tests. Normal-pipeline prompts are byte-identical to before, so cached answers still hit.
+- Ablation runs reuse the full run's analysis and initial answers through the response cache (logged as cache hits); the harness checks the initial versions' sha256 and flags `controlled = false` if they differ.
+- One call budget shared by every run of an invocation. On exhaustion the current run is saved for resume, nothing else starts, and outputs are still written; unfinished conditions are "missing" and excluded, a finished run without a solution scores 0.
+- Hidden tests are executed once per distinct code (by sha256) with identical seeded inputs; results stay in `hidden/<problem>.json`. Bootstrap settings are stored in bench.json so rebuilt summaries never change. Outputs have no timestamps (PNG metadata stripped), so rebuilding gives identical bytes.
+
+**Deviations from plan**
+- Problem directories are named by plain id (`benchmarks/problems/two_sum`), ordered alphabetically, not `NN_slug`.
+- Extra modules: `evaluation/records.py` (checkpoint and record models), `evaluation/summary.py` (aggregation); mock bench scenarios live in `providers/mock_bench_scenarios.py` with a small builder.
+- `select-only` (V0 of the full run) added as a free condition. `evaluation:` config block excluded from the resume fingerprint.
+- The merge_intervals optimizer proposal fails the touching test on buggy V0 (so it is challenged and rejected on tests), rather than being rejected as a no-op.
+
+**Built**
+- `quadcode/evaluation/` (problems, conditions, records, hidden, harness, stats, summary, outputs, charts), `quadcode/cli_bench.py` (`bench`, `bench-report`); `solve --ablation`.
+- `benchmarks/problems/`: 10 problems, 12-13 hidden tests each (8 with generated performance tests), hand-written expected values cross-checked against hand-written reference solutions; `benchmarks/README.md`.
+- Mock scenarios `merge_intervals` (full fixes a bug every baseline has) and `lis_length` (full ties the one correct baseline).
+
+**Mock bench** (`quadcode bench --mock`, 3 problems, production timeouts, ~6 min): full 97.4% mean hidden pass rate [92.3%, 100%] vs singles 72-82% and oracle 89.7%. Full loses two_sum to single-validator (13/13 vs 12/13): the hidden "smallest i" test catches G1's overwrite of earlier indices, and D1 keeps the first index. Ablations tie the full pipeline everywhere, as expected for scripted answers.
+
+**Real bench `real-bench-1`** (`quadcode bench --problems merge_intervals,lis_length,top_k_frequent --conditions full --rounds 2 --budget-calls 120 --bench-id real-bench-1`, Groq line-up, Docker sandbox): COMPLETED, 41 provider attempts. Hidden pass rate: full 33.3% (1 of 3 problems solved), G1/C1/P1 100% each, D1 66.7%, oracle 100%. The full pipeline loses 2 of 3 problems to every single agent except the validator (0 wins, 1 tie, 2 losses). Both losses come from the validator's test suite, not from the code:
+- merge_intervals: the validator (gpt-oss-120b, then gpt-oss-20b) wrote Python expressions such as `[[1, 100]] * 100000` inside test JSON on all four attempts including repairs, so it gave no answer, there was no suite and the run ended UNVERIFIED without a final solution.
+- top_k_frequent: the validator wrote every argument as a string (`"['apple', ...]"`, `"2"`), so all four correct solutions raised TypeError, the whole suite was set aside as disputed and the run ended UNVERIFIED without a final solution.
+- lis_length: completed; the final version passes all 12 hidden tests, tying every single agent.
+Every number in summary.md was checked against hidden/*.json and calls.jsonl.
+
+**Fix after the real bench (validator test suites):**
+- New `quadcode/testargs.py` checks the validator's tests against the specification's signature: a JSON string where the annotation names a list, dict, number or bool (e.g. `"['apple']"` for `list[str]`, `"2"` for `int`) is reported per test. Tests that expect an exception (wrong types on purpose) and generated inputs are skipped; unions, `Optional` and unparsable signatures are never flagged.
+- The gateway takes an optional answer `check`. An answer that parses but fails it is logged as invalid output, goes through the usual repair retry with the exact problem, is never cached, and a cached answer that fails it is not reused. The orchestrator passes the check only for the validator's initial call.
+- The test field description and the repair rules now forbid Python inside JSON values (`[x] * 1000`, comprehensions, `range(...)`) and stringified values. This changes the validator's initial prompt, so earlier cached validator answers are not reused.
+- Not changed: if the validator still gives no usable suite, the run ends UNVERIFIED with no final solution, as before.
+
+**Real re-run `real-bench-2`** (same command, `--bench-id real-bench-2`): COMPLETED, 52 provider attempts. The analysis and the three non-validator initial answers came from the cache (3/3 per problem), so only the validator's tests and later phases were new. Full: 66.7% hidden pass rate (2 of 3 solved, up from 1 of 3); G1/C1/P1 100%, D1 66.7%, oracle 100%. Full vs each of G1/C1/P1: 0 wins, 2 ties, 1 loss.
+- merge_intervals: now COMPLETED; M-001 and M-005 accepted, M-002 to M-004 rejected, validator test T07 set aside as disputed; final passes 13/13 hidden tests (tie with the singles, which already passed).
+- lis_length: COMPLETED, 12/12 (tie).
+- top_k_frequent: still UNVERIFIED with no final solution. gpt-oss-120b wrote `["same"] * 1000`, then a list comprehension after the repair message forbade it; the gpt-oss-20b fallback was cut off at 5000 tokens, then wrote arguments as plain strings (`"hello"`, `"world"` for `words`/`k`), which the new check rejected. Both repairs were sent; the models did not follow them.
+On these three problems the pipeline never beats the best single agent: three of the four single agents already solve all of them, and the pipeline's own losses all come from the validator's tests.
+
+**Tests:** `pytest`: 579 passed, 0 failed (~300 s), including 7 for the argument check. New: ablation behaviour per mode and resume; every reference passes its hidden tests; problem validation; bootstrap and win/tie/loss on hand-computed data; end-to-end mock bench checked against hidden suite runs and calls.jsonl; hidden test inputs never reach a prompt or run file; budget abort and resume; byte-identical regeneration; CLI.
+
+**Open issues**
+- The pipeline delivers no solution when the validator's suite is missing or wholly disputed, even when other slots wrote correct code (2 of 3 real problems in real-bench-1, 1 of 3 in real-bench-2). Mistyped and expression-valued tests are now caught and repaired (see above); delivering an unverified V0 or letting another slot write tests when the validator still fails is not implemented.
+- In the mock bench, two_sum's full run rejected M-001 for a "measured regression" of 1.19 ms -> 1.50 ms: noise on a millisecond perf test crossing the 25% tolerance (the min/max ranges did not overlap). Ablation runs accepted the same change, so the conditions diverged on timing noise, not on the ablation. Selection noise from M4 is not fully solved for very short tests.
+- Mock ablations cannot show an effect (scripted answers ignore the prompt). Real ablations cost roughly one more full run each per problem.
+- With 3-10 problems the CIs are wide; the summary says so.
+- Groq's 429 error text includes the account's organization id, and it is logged verbatim in calls.jsonl (runs/ is git-ignored; API keys are still redacted).
