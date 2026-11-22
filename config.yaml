@@ -98,6 +98,14 @@ prompts:
   max_error_chars: 200        # failing-test output is truncated to this many characters
   max_failing_tests: 5        # failing tests listed per version
 
+# Optional prices in USD per million tokens, keyed by "<provider>/<model>" exactly as configured
+# above. Used only for the cost column of reports, which is labeled as an estimate. Models without
+# an entry show cost "not configured". Changing prices does not affect --resume.
+pricing: {}
+#  openrouter/some-model:
+#    input_per_mtok: 0.0
+#    output_per_mtok: 0.0
+
 run:
   rounds: 3
   parallel: true

@@ -110,6 +110,13 @@ class PromptConfig(_Strict):
     max_failing_tests: int = Field(default=5, ge=1, description="Failing tests listed per version.")
 
 
+class ModelPrice(_Strict):
+    """Price of one provider/model in USD per million tokens, used only for report cost estimates."""
+
+    input_per_mtok: float = Field(ge=0)
+    output_per_mtok: float = Field(ge=0)
+
+
 class AppConfig(_Strict):
     providers: dict[str, ProviderConfig]
     agents: dict[Role, AgentConfig]
@@ -119,6 +126,9 @@ class AppConfig(_Strict):
     selection: SelectionConfig = SelectionConfig()
     prompts: PromptConfig = PromptConfig()
     allow_duplicate_models: bool = False
+    pricing: dict[str, ModelPrice] = Field(
+        default_factory=dict, description="'<provider>/<model>' -> price. Reports show cost as not configured "
+        "for models without an entry.")
 
     @model_validator(mode="after")
     def _check_consistency(self) -> AppConfig:
@@ -134,6 +144,9 @@ class AppConfig(_Strict):
         for role, agent in self.agents.items():
             if agent.provider not in self.providers:
                 raise ValueError(f"agent '{role.value}' references unknown provider '{agent.provider}'")
+        bad_keys = [k for k in self.pricing if "/" not in k.strip("/")]
+        if bad_keys:
+            raise ValueError(f"pricing keys must look like '<provider>/<model>': {bad_keys}")
         if not self.allow_duplicate_models:
             seen: dict[tuple[str, str], Role] = {}
             for role, agent in self.agents.items():
@@ -151,6 +164,9 @@ class AppConfig(_Strict):
 
     def provider_for(self, role: Role) -> ProviderConfig:
         return self.providers[self.agents[role].provider]
+
+    def price_for(self, provider: str, model: str) -> ModelPrice | None:
+        return self.pricing.get(f"{provider}/{model}")
 
     def describe_agents(self) -> list[dict[str, Any]]:
         """Role -> actual provider/model rows, for display in CLI, reports and UI."""

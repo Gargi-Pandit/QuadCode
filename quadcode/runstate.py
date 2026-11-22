@@ -86,11 +86,12 @@ class RunState(_State):
 def config_fingerprint(config: AppConfig) -> str:
     """Hash of everything that changes what agents are asked or how code is judged.
 
-    The ``run`` block (rounds, budget, cache, parallelism, paths) and the sandbox backend choice
-    are excluded, so a run can be resumed with a different call budget, with the cache switched
-    off or on another available backend.
+    The ``run`` block (rounds, budget, cache, parallelism, paths), the sandbox backend choice and
+    ``pricing`` (used only for report cost estimates) are excluded, so a run can be resumed with a
+    different call budget, with the cache switched off, on another available backend or after
+    prices were added.
     """
-    data = config.model_dump(mode="json", exclude={"run": True, "sandbox": {"backend"}})
+    data = config.model_dump(mode="json", exclude={"run": True, "sandbox": {"backend"}, "pricing": True})
     return sha256_text(json.dumps(data, sort_keys=True))
 
 
