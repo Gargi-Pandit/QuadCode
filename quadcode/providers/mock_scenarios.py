@@ -7,9 +7,10 @@ The ``two_sum`` scenario is designed to exercise every orchestrator path:
 - Phase 3 reviews disagree: the reviewer calls C1 acceptable, the optimizer calls it
   unacceptable.
 - The validator is UNAVAILABLE for the Phase 3 review (always rate-limited).
-- Round 1: the reviewer proposes a validation change (passes tests), the optimizer
-  proposes a memory "optimization" that breaks duplicate inputs (fails tests, gets
-  challenged, must be rejected). The validator hits one transient 429 first.
+- Round 1: the reviewer proposes a validation change (passes tests, accepted without
+  challenge), the optimizer proposes a memory "optimization" that breaks duplicate inputs
+  (fails T03, is challenged by the other three with split verdicts, must be rejected).
+  The validator hits one transient 429 first.
 - Round 2+: every agent proposes nothing, which triggers early stop.
 - Some responses are wrapped in prose and markdown fences to exercise JSON extraction.
 """
@@ -234,15 +235,15 @@ def build_two_sum() -> MockScenario:
     for role in Role:
         responses[(role, CallType.MODIFY, WILDCARD)] = _js({"proposals": []})
 
-    responses[(G, CallType.CHALLENGE, WILDCARD)] = _js({
+    # Challenges are keyed by "round-N:<modification id>". M-002 fails T03 and is challenged by
+    # the three other agents, who disagree; the test evidence decides, not the verdicts.
+    responses[(G, CallType.CHALLENGE, "round-1:M-002")] = _js({
         "verdict": "accept", "comment": "The memory saving seems reasonable.", "evidence": ""})
-    responses[(R, CallType.CHALLENGE, WILDCARD)] = _js({
+    responses[(R, CallType.CHALLENGE, "round-1:M-002")] = _js({
         "verdict": "reject", "comment": "Breaks [3, 3] with target 6: the first 3 is never stored.",
         "evidence": "Failing test T03"})
-    responses[(V, CallType.CHALLENGE, WILDCARD)] = _js({
+    responses[(V, CallType.CHALLENGE, "round-1:M-002")] = _js({
         "verdict": "reject", "comment": "Regression on duplicate values.", "evidence": "T03 fails"})
-    responses[(O, CallType.CHALLENGE, WILDCARD)] = _js({
-        "verdict": "accept", "comment": "Input validation is cheap and clearer.", "evidence": ""})
 
     failures: dict[tuple[Role, CallType, str], FailureSpec] = {
         (V, CallType.REVIEW, WILDCARD): FailureSpec("rate_limit", times=None),

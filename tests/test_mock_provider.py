@@ -52,7 +52,8 @@ def test_all_scripted_outputs_parse() -> None:
         sol = parse_model(prov.complete(_req(CallType.INITIAL)).text, InitialSolution)
         assert "def two_sum" in sol.code
         assert parse_model(prov.complete(_req(CallType.MODIFY, "round-2")).text, ModifyOutput).proposals == []
-        parse_model(prov.complete(_req(CallType.CHALLENGE, "M-002")).text, ChallengeResponse)
+        if role is not Role.OPTIMIZER:  # the optimizer proposed M-002 and does not challenge it
+            parse_model(prov.complete(_req(CallType.CHALLENGE, "round-1:M-002")).text, ChallengeResponse)
         if role is not Role.VALIDATOR:
             review = parse_model(prov.complete(_req(CallType.REVIEW)).text, Review)
             assert review.items
@@ -67,7 +68,7 @@ def test_scenario_contains_required_paths() -> None:
     assert categories == {"normal", "boundary", "adversarial", "performance"}
     # Disagreement on the reviewer's and optimizer's challenge verdicts for the same proposal.
     verdicts = {
-        r: parse_model(MockProvider("mock", r, scen).complete(_req(CallType.CHALLENGE, "M-002")).text,
+        r: parse_model(MockProvider("mock", r, scen).complete(_req(CallType.CHALLENGE, "round-1:M-002")).text,
                        ChallengeResponse).verdict
         for r in (Role.GENERATOR, Role.REVIEWER)
     }

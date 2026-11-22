@@ -57,6 +57,7 @@ class MockProvider(LLMClient):
         self._lock = threading.Lock()
         self._failures_raised: dict[tuple[CallType, str], int] = {}
         self.calls_received = 0
+        self.requests: list[LLMRequest] = []  # every request received, for inspection in tests
 
     def _maybe_fail(self, request: LLMRequest) -> None:
         spec = _lookup(self.scenario.failures, self.role, request.call_type, request.tag)
@@ -80,6 +81,7 @@ class MockProvider(LLMClient):
     def complete(self, request: LLMRequest) -> LLMResponse:
         with self._lock:
             self.calls_received += 1
+            self.requests.append(request)
         self._maybe_fail(request)
         text = _lookup(self.scenario.responses, self.role, request.call_type, request.tag)
         if text is None:
