@@ -11,7 +11,7 @@ from quadcode.report.fmt import listing, not_reached, one_line
 from quadcode.schemas import ROLE_VERSION_LABEL, Decision, Role, Verdict
 
 _LOG_KINDS = ("agent_output", "agent_unavailable", "proposal_recorded", "challenge_requested", "challenge_verdict",
-              "modification_decided", "clarification_needed", "early_stop")
+              "modification_decided", "clarification_needed", "early_stop", "phase_skipped")
 
 
 def _review_item_text(item: dict[str, Any]) -> str:
@@ -81,6 +81,8 @@ def _event_rows(rec: RunRecords, e: LoggedEvent) -> list[tuple[str, str, str, st
             return [(rec.who(e.role), "user", "clarification needed", "\n".join(p.get("questions") or []))]
         case "early_stop":
             return [("orchestrator", "all", "early stop", str(p.get("reason")))]
+        case "phase_skipped":
+            return [("orchestrator", "all", f"phase {e.phase.value} skipped", str(p.get("reason")))]
     return []
 
 

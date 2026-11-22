@@ -28,6 +28,9 @@ def availability_blocks(rec: RunRecords) -> list[Block]:
     for role in Role:
         mine = [m for m in msgs if m.role is role]
         bad = [m.tag for m in mine if not m.ok]
+        if rec.excluded(role):
+            per_role.append([role.value, rec.agent_identity(role), "excluded (ablation)", "-", "-"])
+            continue
         per_role.append([role.value, rec.agent_identity(role), str(sum(1 for m in mine if m.ok)), str(len(bad)),
                          ", ".join(bad) or "-"])
     return [
@@ -168,7 +171,9 @@ def contribution_table(rec: RunRecords) -> Table:
         slot = ROLE_VERSION_LABEL[role]
         initial = rec.initial(role)
         suite = rec.initial_suite(slot)
-        if initial is None:
+        if rec.excluded(role):
+            init_text = "excluded (ablation)"
+        elif initial is None:
             init_text = "UNAVAILABLE" if any(not m.ok for m in rec.messages("initial") if m.role is role) else "none"
         elif suite is not None and suite.executed:
             init_text = f"{slot} ({sum(r.status.value == 'pass' for r in suite.results)}/{len(suite.results)} passed)"

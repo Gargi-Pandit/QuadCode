@@ -191,17 +191,23 @@ def suite_listing(tests: Sequence[TestCase], cfg: PromptConfig) -> str:
     return "\n".join(rows)
 
 
-def review_prompt(spec: ProblemSpec, own_label: str, codes: Mapping[str, str | None], table: str) -> str:
+def review_prompt(spec: ProblemSpec, own_label: str, codes: Mapping[str, str | None], table: str | None) -> str:
+    """``table`` None withholds the sandbox results (no-test-feedback ablation)."""
     blocks = [_code_block(label, code, spec.language) if code is not None
               else f"### {label}\nUNAVAILABLE: this agent produced no implementation."
               for label, code in codes.items()]
-    return (f"Four agents solved the same problem independently. Your own implementation is {own_label}. "
-            f"Review the other implementations (you may also comment on your own). You may disagree with "
-            f"anyone.\n\nSPECIFICATION:\n{_spec_block(spec)}\n\nIMPLEMENTATIONS:\n" + "\n\n".join(blocks)
-            + f"\n\nSANDBOX TEST RESULTS (measured):\n{table}\n\n"
+    results = f"\n\nSANDBOX TEST RESULTS (measured):\n{table}" if table is not None else ""
+    return (f"{_count_word(len(codes))} agents solved the same problem independently. Your own implementation is "
+            f"{own_label}. Review the other implementations (you may also comment on your own). You may disagree "
+            f"with anyone.\n\nSPECIFICATION:\n{_spec_block(spec)}\n\nIMPLEMENTATIONS:\n" + "\n\n".join(blocks)
+            + f"{results}\n\n"
             "Evaluate correctness, efficiency, time and space complexity, readability, maintainability, "
             "scalability, error handling, vulnerabilities and requirement compliance.\n"
             f"Return a JSON object with:\n{_fields(REVIEW_FIELDS)}")
+
+
+def _count_word(n: int) -> str:
+    return {2: "Two", 3: "Three", 4: "Four"}.get(n, str(n))
 
 
 def review_digest(reviews: Mapping[Role, Review], target: str) -> str:
@@ -227,7 +233,9 @@ MODIFY_FIELDS = {
 
 
 def modify_prompt(spec: ProblemSpec, round_index: int, label: str, code: str, tests: Sequence[TestCase],
-                  current_results: str, context: str, cfg: PromptConfig) -> str:
+                  current_results: str | None, context: str, cfg: PromptConfig) -> str:
+    """``current_results`` None withholds the sandbox results (no-test-feedback ablation)."""
+    results = (f"RESULTS OF {label} (measured):\n{current_results}\n\n" if current_results is not None else "")
     return (f"Optimization round {round_index}. The current version is {label}. Propose zero or more "
             "independent modifications as unified diffs against it. Every proposal is applied on its own, "
             "executed against the test suite and accepted only on evidence: all tests must pass with no measured "
@@ -235,8 +243,11 @@ def modify_prompt(spec: ProblemSpec, round_index: int, label: str, code: str, te
             "real improvement; empty rounds end the optimization.\n\n"
             f"SPECIFICATION:\n{_spec_block(spec)}\n\n"
             f"{_code_block(f'{label} (solution.py)', code, spec.language)}\n\n"
-            f"TEST SUITE:\n{suite_listing(tests, cfg)}\n\nRESULTS OF {label} (measured):\n{current_results}\n\n"
+            f"TEST SUITE:\n{suite_listing(tests, cfg)}\n\n{results}"
             f"{context}\n\nReturn a JSON object with:\n{_fields(MODIFY_FIELDS)}")
+
+
+NO_REVIEW_CONTEXT = "No cross review was run for this version, so there are no review comments."
 
 
 def round_one_context(reviews: Mapping[Role, Review], source_label: str) -> str:
@@ -244,13 +255,18 @@ def round_one_context(reviews: Mapping[Role, Review], source_label: str) -> str:
             f"{review_digest(reviews, source_label)}")
 
 
+WITHHELD_REASON = "rejected on the orchestrator's evidence (the reason is withheld: no test feedback is shown)"
+
+
 def later_round_context(prev_label: str, accepted_diff: str, rejected: Sequence[ModificationRecord],
-                        cfg: PromptConfig) -> str:
+                        cfg: PromptConfig, with_results: bool = True) -> str:
+    """``with_results`` False hides why proposals were rejected, since the reasons quote test output."""
     parts = [f"Changes accepted into this version (diff from {prev_label}):\n```diff\n{accepted_diff.rstrip()}\n```"]
     if rejected:
         parts.append("Proposals rejected in the previous round:")
-        parts.extend(f"- {r.id} by {r.proposed_by.value}: {truncate(r.justification, 120)} -> rejected: "
-                     f"{truncate(r.decision_reason, cfg.max_error_chars)}" for r in rejected)
+        parts.extend(f"- {r.id} by {r.proposed_by.value}: {truncate(r.justification, 120)} -> "
+                     + (f"rejected: {truncate(r.decision_reason, cfg.max_error_chars)}" if with_results
+                        else WITHHELD_REASON) for r in rejected)
     return "\n".join(parts)
 
 
@@ -261,11 +277,17 @@ CHALLENGE_FIELDS = {
 }
 
 
-def challenge_prompt(spec: ProblemSpec, record: ModificationRecord, reason: str, results: str) -> str:
-    return (f"{record.proposed_by.value} proposed modification {record.id} to {record.base_version}. It is "
-            f"under challenge because: {reason}\n\nSPECIFICATION:\n{_spec_block(spec)}\n\n"
+def challenge_prompt(spec: ProblemSpec, record: ModificationRecord, reason: str | None, results: str | None) -> str:
+    """``reason``/``results`` None withhold the test evidence (no-test-feedback ablation)."""
+    why = (f"It is under challenge because: {reason}" if reason is not None else
+           "It is under challenge because the orchestrator's evidence speaks against it (details withheld: no "
+           "test feedback is shown).")
+    shown = (f"SANDBOX RESULTS OF {record.candidate_version} (measured):\n{results}\n\n" if results is not None
+             else "")
+    return (f"{record.proposed_by.value} proposed modification {record.id} to {record.base_version}. "
+            f"{why}\n\nSPECIFICATION:\n{_spec_block(spec)}\n\n"
             f"DIFF:\n```diff\n{record.diff.rstrip()}\n```\nJustification: {record.justification}\n"
             f"Expected impact: {record.expected_impact}\nDisadvantages: {record.disadvantages or '-'}\n\n"
-            f"SANDBOX RESULTS OF {record.candidate_version} (measured):\n{results}\n\n"
+            f"{shown}"
             "Should this modification be accepted? Your verdict is recorded and shown, but the decision is "
             f"made on test evidence and measurements.\nReturn a JSON object with:\n{_fields(CHALLENGE_FIELDS)}")

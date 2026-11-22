@@ -15,6 +15,7 @@ from quadcode.runstate import RunState, save_state
 from quadcode.sandbox import Sandbox
 from quadcode.schemas import (
     ROLE_VERSION_LABEL,
+    Ablation,
     AgentAvailability,
     AgentStatus,
     Phase,
@@ -50,6 +51,15 @@ class RunContext:
         if self.state.spec is None:
             raise RuntimeError("the problem specification is not available yet")
         return self.state.spec
+
+    @property
+    def roles(self) -> list[Role]:
+        return self.state.roles
+
+    @property
+    def show_results(self) -> bool:
+        """Whether agent prompts may carry sandbox results (off only for the no-test-feedback ablation)."""
+        return self.state.ablation is not Ablation.NO_TEST_FEEDBACK
 
     @property
     def perf_ids(self) -> list[str]:

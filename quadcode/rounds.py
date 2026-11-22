@@ -15,6 +15,7 @@ from quadcode.gateway import BudgetExhausted
 from quadcode.linemap import ComposeConflict, ComposeResult, compose
 from quadcode.modifications import build_record
 from quadcode.prompts import (
+    NO_REVIEW_CONTEXT,
     challenge_prompt,
     later_round_context,
     modify_prompt,
@@ -25,6 +26,7 @@ from quadcode.prompts import (
 from quadcode.runctx import RunContext
 from quadcode.runstate import RoundState
 from quadcode.schemas import (
+    Ablation,
     ChallengeResponse,
     CallType,
     Decision,
@@ -74,13 +76,15 @@ class RoundRunner:
     def _context_text(self, rs: RoundState, base: StoredVersion) -> str:
         ctx = self.ctx
         if rs.index == 1:
+            if ctx.state.ablation is Ablation.NO_REVIEW:
+                return NO_REVIEW_CONTEXT
             source = base.meta.parents[0] if base.meta.parents else base.label
             return round_one_context(ctx.state.reviews, source)
         prev = ctx.state.rounds_state[rs.index - 2]
         prev_code = ctx.store.load(prev.base).code
         rejected = [ctx.ledger.get(m) for m in prev.rejected]
         return later_round_context(prev.base, make_diff(prev_code, base.code, f"a/{prev.base}", f"b/{base.label}"),
-                                   rejected, ctx.config.prompts)
+                                   rejected, ctx.config.prompts, with_results=ctx.show_results)
 
     # ------------------------------------------------------------ steps
 
@@ -89,10 +93,10 @@ class RoundRunner:
         if rs.modify_done:
             return
         tag = f"round-{rs.index}"
-        prompt = modify_prompt(ctx.spec, rs.index, base.label, base.code, ctx.tests,
-                               results_table({base.label: base_suite}, ctx.config.prompts),
+        results = results_table({base.label: base_suite}, ctx.config.prompts) if ctx.show_results else None
+        prompt = modify_prompt(ctx.spec, rs.index, base.label, base.code, ctx.tests, results,
                                self._context_text(rs, base), ctx.config.prompts)
-        missing = [r for r in Role if r not in rs.proposals]
+        missing = [r for r in ctx.roles if r not in rs.proposals]
         result = ctx.pool.run({r: (lambda a: a.ask(CallType.MODIFY, prompt, ModifyOutput, tag)) for r in missing})
         for role, outcome in result.outcomes.items():
             if outcome.ok:
@@ -212,11 +216,14 @@ class RoundRunner:
         rec = ctx.ledger.get(item.record.id)
         tag = f"round-{rs.index}:{rec.id}"
         already = {v.role for v in rec.reviewers}
-        roles = [r for r in Role if r is not rec.proposed_by and r not in already]
+        roles = [r for r in ctx.roles if r is not rec.proposed_by and r not in already]
         if not roles:
             return
-        results = results_table({rec.candidate_version or rec.id: item.suite}, ctx.config.prompts)
-        prompt = challenge_prompt(ctx.spec, rec, reason, results)
+        if ctx.show_results:
+            prompt = challenge_prompt(ctx.spec, rec, reason,
+                                      results_table({rec.candidate_version or rec.id: item.suite}, ctx.config.prompts))
+        else:
+            prompt = challenge_prompt(ctx.spec, rec, None, None)
         ctx.event(PHASE, "challenge_requested", rec.proposed_by, round=rs.index, id=rec.id, reason=reason,
                   challengers=[r.value for r in roles])
         result = ctx.pool.run({r: (lambda a: a.ask(CallType.CHALLENGE, prompt, ChallengeResponse, tag))
@@ -320,11 +327,11 @@ class RoundRunner:
         return rs
 
 
-def stop_reason(rs: RoundState) -> str | None:
+def stop_reason(rs: RoundState, active_agents: int = len(Role)) -> str | None:
     """Why the rounds end after ``rs``, or None if they continue."""
     if rs.accepted:
         return None
-    if len(rs.unavailable) == len(Role):
+    if len(rs.unavailable) == active_agents:
         return (f"every agent was unavailable in round {rs.index}; stopped without evidence of convergence")
     text = f"round {rs.index} accepted no modification (early stop)"
     if rs.unavailable:

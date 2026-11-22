@@ -7,7 +7,7 @@ from quadcode.report.doc import Block, Code, Heading, Para, bullets, source, tab
 from quadcode.report.fmt import MEASURED, THEORETICAL, not_reached, num, seconds
 from quadcode.report.sections_results import theoretical_time
 from quadcode.report.tables import contribution_table, final_label
-from quadcode.schemas import ROLE_VERSION_LABEL, Decision, Role, TestCategory, TestStatus
+from quadcode.schemas import ROLE_VERSION_LABEL, Ablation, Decision, Role, TestCategory, TestStatus
 
 
 def _why_blocks(rec: RunRecords) -> list[Block]:
@@ -117,6 +117,8 @@ def _limitations(rec: RunRecords) -> list[str]:
         items.append(f"Proposals whose diff did not apply and were never executed: {', '.join(unapplied)}.")
     items.append("Test expected values come from the validator agent; hidden tests are not part of a solve run.")
     items.append("Peak memory is the Python heap measured with tracemalloc, not total process memory.")
+    if rec.ablation() is not Ablation.NONE:
+        items.append(f"Evaluation ablation {rec.ablation().value}: {rec.ablation().description}.")
     if rec.is_mock():
         items.append("Mock mode: agent answers are scripted, so this run says nothing about real model quality.")
     items.extend(f"Records not fully readable: {err}" for err in rec.load_errors)

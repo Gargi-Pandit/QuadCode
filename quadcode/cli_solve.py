@@ -28,7 +28,7 @@ from quadcode.providers import MissingAPIKeyError, UnsupportedProviderError
 from quadcode.report import write_report
 from quadcode.runstate import ResumeError, load_state
 from quadcode.sandbox import Sandbox, SandboxUnavailable, select_sandbox
-from quadcode.schemas import Role, RunStatus, RunSummary
+from quadcode.schemas import Ablation, Role, RunStatus, RunSummary
 from quadcode.tables import format_table
 
 EXIT_CODES = {RunStatus.COMPLETED: 0, RunStatus.UNVERIFIED: 1, RunStatus.FAILED: 2,
@@ -75,6 +75,8 @@ def _short(text: str | None, limit: int = 60) -> str:
 
 def print_summary(summary: RunSummary, run_dir: Path) -> None:
     print(f"\nrun {summary.run_id}: {summary.status.value.upper()}")
+    if summary.ablation is not Ablation.NONE:
+        print(f"{summary.ablation.description}")
     if summary.isolation_warning:
         print(f"WARNING: {summary.isolation_warning}")
     rows = [[a.role.value, a.label, f"{a.provider}/{a.model}", a.phase, a.status.value, _short(a.error, 50)]
@@ -181,10 +183,15 @@ def _run(args: argparse.Namespace, config: AppConfig, gateway: LLMGateway, sandb
                     print("the problem file differs from the one this run started with", file=sys.stderr)
                     return 2
             orch = Orchestrator.resume(config, gateway, sandbox, run_dir)
+            if args.ablation != orch.state.ablation.value and args.ablation != Ablation.NONE.value:
+                print(f"this run was started with ablation '{orch.state.ablation.value}'; --ablation cannot change "
+                      "it on resume", file=sys.stderr)
+                return 2
             print(f"resuming {run_id} (completed steps: {', '.join(orch.state.done) or 'none'})")
         else:
             problem = Path(args.problem).read_text(encoding="utf-8")
-            orch = Orchestrator.create(config, gateway, sandbox, run_dir, run_id, problem, rounds)
+            orch = Orchestrator.create(config, gateway, sandbox, run_dir, run_id, problem, rounds,
+                                       ablation=Ablation(args.ablation))
             print(f"run {run_id}")
     except (ResumeError, FileExistsError) as exc:
         print(f"cannot start: {exc}", file=sys.stderr)
@@ -212,4 +219,6 @@ def add_solve_command(sub: Any) -> None:
     p.add_argument("--runs-dir", default=None, help="parent directory of runs (default: config run.runs_dir)")
     p.add_argument("--backend", choices=["auto", "docker", "subprocess"], help="override sandbox.backend")
     p.add_argument("--no-cache", action="store_true", help="do not read or write the response cache")
+    p.add_argument("--ablation", choices=[a.value for a in Ablation], default=Ablation.NONE.value,
+                   help="switch off one pipeline component, for evaluation (default: none, the full pipeline)")
     p.set_defaults(func=_cmd_solve)

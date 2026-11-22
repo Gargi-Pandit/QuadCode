@@ -32,6 +32,9 @@ from quadcode.runstate import (
 from quadcode.sandbox import Sandbox
 from quadcode.schemas import (
     ROLE_VERSION_LABEL,
+    Ablation,
+    AgentAvailability,
+    AgentStatus,
     CallType,
     Decision,
     InitialSolution,
@@ -82,14 +85,19 @@ class Orchestrator:
 
     @classmethod
     def create(cls, config: AppConfig, gateway: LLMGateway, sandbox: Sandbox, run_dir: Path, run_id: str,
-               problem: str, rounds: int) -> Orchestrator:
+               problem: str, rounds: int, ablation: Ablation = Ablation.NONE) -> Orchestrator:
         if (run_dir / "state.json").exists():
             raise FileExistsError(f"{run_dir} already holds a run; use --resume {run_id}")
         run_dir.mkdir(parents=True, exist_ok=True)
         (run_dir / PROBLEM_FILE).write_text(problem, encoding="utf-8")
         (run_dir / CONFIG_SNAPSHOT).write_text(config.model_dump_json(indent=2) + "\n", encoding="utf-8")
         state = RunState(run_id=run_id, problem_sha256=problem_fingerprint(problem),
-                         config_sha256=config_fingerprint(config), rounds=rounds)
+                         config_sha256=config_fingerprint(config), rounds=rounds, ablation=ablation)
+        for role in ablation.excluded_roles:
+            agent = config.agent(role)
+            state.availability = [*state.availability, AgentAvailability(
+                role=role, label=ROLE_VERSION_LABEL[role], provider=agent.provider, model=agent.model,
+                phase="all", status=AgentStatus.EXCLUDED, error=None)]
         save_state(run_dir, state)
         return cls(config, gateway, sandbox, run_dir, problem, state)
 
@@ -127,7 +135,7 @@ class Orchestrator:
         phase = Phase.ANALYSIS
         self._begin(phase)
         prompt = analysis_prompt(self.problem)
-        for role in Role:
+        for role in self.ctx.roles:
             agent = self.ctx.pool.agents[role]
             outcome = agent.ask(CallType.ANALYSIS, prompt, ProblemSpec, "analysis")
             self.ctx.note_outcome(phase, outcome, "analysis")
@@ -153,7 +161,7 @@ class Orchestrator:
         phase = Phase.INITIAL
         self._begin(phase)
         spec = self.ctx.spec
-        missing = [r for r in Role if r not in self.state.initial]
+        missing = [r for r in self.ctx.roles if r not in self.state.initial]
         result = self.ctx.pool.run({
             r: (lambda a: a.ask(CallType.INITIAL, initial_prompt(self.problem, spec, a.role is Role.VALIDATOR),
                                 InitialSolution, "initial"))
@@ -255,11 +263,16 @@ class Orchestrator:
     def review(self) -> None:
         phase = Phase.REVIEW
         self._begin(phase)
+        if self.state.ablation is Ablation.NO_REVIEW:
+            self.ctx.event(phase, "phase_skipped", reason=self.state.ablation.description)
+            self._end(phase, "review")
+            return
         spec = self.ctx.spec
         codes: dict[str, str | None] = {
-            ROLE_VERSION_LABEL[r]: (self.state.initial[r].code if r in self.state.initial else None) for r in Role}
-        table = results_table(self.state.initial_suites, self.config.prompts)
-        missing = [r for r in Role if r not in self.state.reviews]
+            ROLE_VERSION_LABEL[r]: (self.state.initial[r].code if r in self.state.initial else None)
+            for r in self.ctx.roles}
+        table = results_table(self.state.initial_suites, self.config.prompts) if self.ctx.show_results else None
+        missing = [r for r in self.ctx.roles if r not in self.state.reviews]
         result = self.ctx.pool.run({
             r: (lambda a: a.ask(CallType.REVIEW, review_prompt(spec, ROLE_VERSION_LABEL[a.role], codes, table),
                                 Review, "review"))
@@ -301,7 +314,7 @@ class Orchestrator:
                 self.state.rounds_state = [*self.state.rounds_state, rs]
                 self.ctx.save()
             runner.run(rs)
-            stop = stop_reason(rs)
+            stop = stop_reason(rs, len(self.ctx.roles))
             if stop is not None:
                 reason = stop
                 self.ctx.event(phase, "early_stop", round=index, reason=stop)
@@ -365,7 +378,8 @@ class Orchestrator:
         if state.status in (RunStatus.ABORTED_BUDGET, RunStatus.RUNNING):
             state.status = RunStatus.RUNNING
             self.ctx.event(Phase.ANALYSIS, "run_started", run_id=state.run_id, resumed=bool(state.done),
-                           done=list(state.done), rounds=state.rounds)
+                           done=list(state.done), rounds=state.rounds, ablation=state.ablation.value,
+                           excluded=[r.value for r in state.ablation.excluded_roles])
         steps = [("analysis", self.analysis), ("initial", self.initial), ("local_tests", self.local_tests),
                  ("review", self.review), ("reference", self.select_reference), ("rounds", self.rounds),
                  ("benchmark", self.benchmark), ("integrate", self.integrate)]
@@ -400,7 +414,7 @@ class Orchestrator:
             final_verified=state.status is RunStatus.COMPLETED,
             accepted=[r.id for r in records if r.decision is Decision.ACCEPTED],
             rejected=[r.id for r in records if r.decision is Decision.REJECTED],
-            unresolved=list(state.unresolved), availability=list(state.availability),
+            unresolved=list(state.unresolved), availability=list(state.availability), ablation=state.ablation,
             sandbox_backend=self.ctx.sandbox.name, isolation_warning=self.ctx.sandbox.isolation_warning)
         (self.run_dir / SUMMARY_FILE).write_text(summary.model_dump_json(indent=2) + "\n", encoding="utf-8")
         self.ctx.event(Phase.INTEGRATE, "run_finished", status=summary.status.value, stop_reason=summary.stop_reason,

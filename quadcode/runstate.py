@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from quadcode.cache import sha256_text
 from quadcode.config import AppConfig, ProviderConfig
 from quadcode.schemas import (
+    Ablation,
     AgentAvailability,
     InitialSolution,
     ModifyOutput,
@@ -59,6 +60,7 @@ class RunState(_State):
     problem_sha256: str
     config_sha256: str
     rounds: int = Field(ge=1)
+    ablation: Ablation = Ablation.NONE
     status: RunStatus = RunStatus.RUNNING
     done: list[str] = Field(default_factory=list, description="Completed steps, in order.")
     spec: ProblemSpec | None = None
@@ -76,6 +78,11 @@ class RunState(_State):
     unresolved: list[str] = Field(default_factory=list)
     created_at: str = Field(default_factory=utc_now)
     updated_at: str = Field(default_factory=utc_now)
+
+    @property
+    def roles(self) -> list[Role]:
+        """The agent slots taking part in this run, in slot order."""
+        return [r for r in Role if r not in self.ablation.excluded_roles]
 
     def is_done(self, step: str) -> bool:
         return step in self.done

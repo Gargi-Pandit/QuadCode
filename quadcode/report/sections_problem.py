@@ -7,7 +7,7 @@ from quadcode.report.data import RunRecords
 from quadcode.report.doc import Block, Code, Heading, Note, Para, bullets, source, table
 from quadcode.report.fmt import MEASURED, THEORETICAL, listing, not_reached, num, one_line, stop_text
 from quadcode.report.tables import availability_blocks, token_blocks
-from quadcode.schemas import ROLE_VERSION_LABEL, Phase, Role, SuiteRun, TestStatus
+from quadcode.schemas import ROLE_VERSION_LABEL, Ablation, Phase, Role, SuiteRun, TestStatus
 
 
 def suite_text(suite: SuiteRun | None) -> str:
@@ -34,8 +34,12 @@ def overview(rec: RunRecords, pricing: AppConfig | None) -> list[Block]:
             ["rounds", f"{s.rounds_run} run of {s.rounds_requested} requested" if s else "-"],
             ["final version", f"{s.final_version} ({'passes every test' if s.final_verified else 'NOT verified'})"
              if s and s.final_version else "none"],
-            ["sandbox", s.sandbox_backend or "-" if s else "-"]]
+            ["sandbox", s.sandbox_backend or "-" if s else "-"],
+            ["pipeline", rec.ablation().description]]
     blocks.append(table(["item", "value"], rows))
+    if rec.ablation() is not Ablation.NONE:
+        blocks.append(Note(f"This run is an evaluation ablation ({rec.ablation().value}): "
+                           f"{rec.ablation().description}. It is not the full QuadCode pipeline.", "warning"))
     if rec.is_mock():
         blocks.append(Note("Mock mode: every agent slot used the scripted mock provider. Agent answers are "
                            "fixed by the mock scenario and do not come from a language model. Test results "
@@ -162,7 +166,8 @@ def section_comparison(rec: RunRecords) -> list[Block]:
         found = rec.initial(role)
         weak, bugs = _review_findings(rec, label)
         if found is None:
-            rows.append([label, rec.who(role), "UNAVAILABLE", "-", "-", "-", "-", weak, bugs, "-"])
+            status = "EXCLUDED (ablation)" if rec.excluded(role) else "UNAVAILABLE"
+            rows.append([label, rec.who(role), status, "-", "-", "-", "-", weak, bugs, "-"])
             continue
         sol = found[0]
         rows.append([label, rec.who(role), sol.algorithm, sol.time_complexity, sol.space_complexity,

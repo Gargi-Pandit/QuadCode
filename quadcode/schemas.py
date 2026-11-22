@@ -50,6 +50,33 @@ class AgentStatus(StrEnum):
     DONE = "done"
     CACHED = "cached"
     UNAVAILABLE = "unavailable"
+    EXCLUDED = "excluded"  # left out on purpose by an ablation; never a failure and never approval
+
+
+class Ablation(StrEnum):
+    """A pipeline component switched off for the evaluation harness. ``none`` is the normal pipeline."""
+
+    NONE = "none"
+    NO_REVIEW = "no_review"                 # Phase 3 cross review is skipped
+    NO_TEST_FEEDBACK = "no_test_feedback"   # agent prompts carry no sandbox results; decisions still use them
+    NO_OPTIMIZER = "no_optimizer"           # the optimizer slot takes part in no phase
+
+    @property
+    def excluded_roles(self) -> tuple[Role, ...]:
+        return (Role.OPTIMIZER,) if self is Ablation.NO_OPTIMIZER else ()
+
+    @property
+    def description(self) -> str:
+        return ABLATION_TEXT[self]
+
+
+ABLATION_TEXT: dict[Ablation, str] = {
+    Ablation.NONE: "full pipeline",
+    Ablation.NO_REVIEW: "ablation: Phase 3 cross review skipped; round 1 has no review comments",
+    Ablation.NO_TEST_FEEDBACK: "ablation: agents are shown no sandbox test results; the orchestrator still "
+                               "decides on test evidence",
+    Ablation.NO_OPTIMIZER: "ablation: the optimizer slot is excluded from every phase (three agents)",
+}
 
 
 class CallStatus(StrEnum):
@@ -475,6 +502,7 @@ class RunSummary(_Frozen):
     rejected: list[str] = Field(default_factory=list)
     unresolved: list[str] = Field(default_factory=list)
     availability: list[AgentAvailability] = Field(default_factory=list)
+    ablation: Ablation = Ablation.NONE
     sandbox_backend: str | None = None
     isolation_warning: str | None = None
     finished_at: str = Field(default_factory=utc_now)

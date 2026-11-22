@@ -21,6 +21,7 @@ from quadcode.orchestrator import BENCHMARK_FILE, CONFIG_SNAPSHOT, FINAL_STEM, P
 from quadcode.runctx import SUITE_FILE, TESTS_FILE
 from quadcode.runlog import CALLS_FILE, EVENTS_FILE
 from quadcode.schemas import (
+    Ablation,
     BenchmarkReport,
     CallRecord,
     InitialSolution,
@@ -214,6 +215,18 @@ class RunRecords:
         if self.benchmark is None:
             return None
         return next((s for s in self.benchmark.suites if s.version == label), None)
+
+    def ablation(self) -> Ablation:
+        """The ablation this run was started with (summary.json, else the first run_started event)."""
+        if self.summary is not None:
+            return self.summary.ablation
+        started = next(iter(self.of_kind("run_started")), None)
+        if started is None:
+            return Ablation.NONE
+        return Ablation(started.payload.get("ablation", Ablation.NONE.value))
+
+    def excluded(self, role: Role) -> bool:
+        return role in self.ablation().excluded_roles
 
     def is_mock(self) -> bool:
         if self.config is None:

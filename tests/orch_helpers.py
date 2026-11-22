@@ -20,7 +20,7 @@ from quadcode.providers.mock_scenarios import get_scenario
 from quadcode.ratelimit import build_limiters
 from quadcode.runlog import RunLog
 from quadcode.sandbox import SubprocessSandbox
-from quadcode.schemas import CallType, Role, RunEvent
+from quadcode.schemas import Ablation, CallType, Role, RunEvent
 
 from .conftest import BASE_CONFIG, FakeClock
 
@@ -70,7 +70,8 @@ class Built:
 
 def build(root: Path, *, scenario: MockScenario | None = None, config: AppConfig | None = None,
           budget: int | None = None, cache_enabled: bool = False, run_name: str = "run", rounds: int = 3,
-          resume: bool = False, problem: str = "Two sum problem statement.") -> Built:
+          resume: bool = False, problem: str = "Two sum problem statement.",
+          ablation: Ablation = Ablation.NONE) -> Built:
     cfg = config or make_config()
     scen = scenario or get_scenario("two_sum")
     clock = FakeClock()
@@ -86,7 +87,7 @@ def build(root: Path, *, scenario: MockScenario | None = None, config: AppConfig
     if resume:
         orch = Orchestrator.resume(cfg, gateway, sandbox, run_dir)
     else:
-        orch = Orchestrator.create(cfg, gateway, sandbox, run_dir, run_name, problem, rounds)
+        orch = Orchestrator.create(cfg, gateway, sandbox, run_dir, run_name, problem, rounds, ablation=ablation)
     return Built(orch, gateway, run_dir, clock)
 
 
