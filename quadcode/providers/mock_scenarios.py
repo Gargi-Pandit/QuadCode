@@ -21,6 +21,7 @@ import json
 from typing import Any
 
 from quadcode.providers.mock import WILDCARD, FailureSpec, MockScenario
+from quadcode.providers.mock_bench_scenarios import BENCH_SCENARIOS
 from quadcode.schemas import CallType, Role
 
 G = Role.GENERATOR
@@ -252,7 +253,7 @@ def build_two_sum() -> MockScenario:
     return MockScenario(name="two_sum", responses=responses, failures=failures)
 
 
-SCENARIOS: dict[str, MockScenario] = {"two_sum": build_two_sum()}
+SCENARIOS: dict[str, MockScenario] = {"two_sum": build_two_sum(), **BENCH_SCENARIOS}
 PROBLEMS: dict[str, str] = {"two_sum": TWO_SUM_PROBLEM}
 
 
