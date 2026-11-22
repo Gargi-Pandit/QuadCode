@@ -288,6 +288,19 @@ def run_suite(
 _TESTS_ADAPTER = TypeAdapter(list[TestCase])
 
 
+def suite_status(suite: SuiteRun) -> TestStatus:
+    """One status for a whole suite run: PASS only if every test passed; otherwise the most
+    severe status present (ERROR, then TIMEOUT, then FAIL); NOT_RUN if nothing executed."""
+    if not suite.executed or not suite.results:
+        return TestStatus.NOT_RUN
+    if suite.all_passed:
+        return TestStatus.PASS
+    for status in (TestStatus.ERROR, TestStatus.TIMEOUT, TestStatus.FAIL):
+        if suite.count(status):
+            return status
+    return TestStatus.NOT_RUN
+
+
 def load_test_cases(path: str | Path) -> list[TestCase]:
     """Read a JSON file holding a list of test cases (or ``{"tests": [...]}``)."""
     raw = json.loads(Path(path).read_text(encoding="utf-8"))
