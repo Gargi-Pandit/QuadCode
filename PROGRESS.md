@@ -64,3 +64,33 @@ Append-only. One entry per milestone.
 - The subprocess fallback has no network or filesystem isolation (stated in every result). Code in the same process as the runner could still tamper with its own timings; the sandbox protects the host, not measurement integrity against deliberately malicious code.
 - Only Python is executed; other languages are reported as not executed.
 - The open M1 issue about the C1 performance test is resolved: C1 times out on T09 as intended. V0 tie-breaking stays open for M4.
+
+---
+
+## M3: Version store, modification records, diff application, line mapping (2026-11-22)
+
+**Approved plan (short):** a strict unified-diff applier that tolerates wrong header numbers but never fuzzy-matches code; per-line provenance so a line is credited to an agent only when a modification record inserted it; an immutable on-disk version store (G1/C1/P1/D1, V0, `<base>+M-xxx` candidates, V1..Vn); a modification ledger that keeps every record; `apply-diff` and `versions` commands; sample diffs. No LLM calls.
+
+**Key decisions**
+- Hunks are located by exact match of context plus removed lines. Header numbers are hints. Several matches are accepted only if one sits exactly at the stated line, otherwise the hunk is "ambiguous". The only relaxation is trailing whitespace, and it is flagged per hunk. A hunk with no context on a non-empty file is rejected.
+- Records store the changed core of each hunk (context trimmed) as `hunks: [HunkChange]`; `original_code`/`replacement_code`/locations are the joined view. Locations always carry the version label (`V0:L8`, `V0:after L2`, `V1:removed, after L4`).
+- A diff that does not apply still becomes a record: rejected, reason "diff did not apply: …", code taken from the diff's own -/+ lines, location "unresolved".
+- Ledger rules: decided records never change; accept needs test status pass and a reason; reject/withdraw need a reason; verdicts are appended (revised opinions stay visible) and a proposer cannot review its own change; `place()` records the round version once.
+- Versions: create-no-overwrite via hard link, read-only files, sha256 checked on load, identical re-save is a no-op (resume), different content raises. Derived versions are checked line by line against their base.
+- Several accepted diffs written against the same base are composed in sequence; header lines are translated through the earlier changes, and a diff that no longer applies raises `ComposeConflict` naming it.
+
+**Deviations from plan**
+- `suite_status()` added to `testing.py` (one status per suite run); `cli_sandbox._sandbox_config` renamed `sandbox_config` for reuse.
+- `versions` lists in lineage order instead of by timestamp (millisecond timestamps tie).
+- Extra samples `pair_helpers.py` and `ambiguous_with_line.diff` (G1 has no repeated block to be ambiguous about).
+- `apply-diff --run-dir` stores the base as an initial version, so candidates can sit on G1 (`G1+M-001`). The command never accepts or rejects a diff that applied.
+
+**Built**
+- `quadcode/diffs.py`, `linemap.py`, `versions.py`, `modifications.py`, `cli_versions.py`; `HunkChange`, `LineOrigin`, `VersionKind`, `VersionMeta`, `Decision.WITHDRAWN` and new `ModificationRecord` fields in schemas.
+- `samples/two_sum/diffs/` with a README of expected outcomes.
+
+**Tests:** `pytest`: 282 passed, 0 skipped, 0 failed (~24 s). Includes a randomized `make_diff`/`apply_diff` round trip and a sandbox run of the mock round-1 diffs: M-001 passes all 9 tests, M-002 fails exactly T03, as the scenario intends (resolves the M1 open issue).
+
+**Open issues**
+- The mock M-001/M-002 diffs are written against G1. If M4's V0 tie-break picks D1, they will not apply and will be recorded as rejected. M4 must settle the tie-break and keep the scenario consistent with it.
+- `# [role:M-xxx]` comments in the final code are left for phase 8 in M4. The provenance needed for them is in place.

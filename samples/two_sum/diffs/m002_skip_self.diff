@@ -1,0 +1,9 @@
+--- a/solution.py
++++ b/solution.py
+@@ -6,4 +6,5 @@
+         if complement in seen:
+             return [seen[complement], i]
+-        seen[value] = i
++        if complement != value:
++            seen[value] = i
+     return []

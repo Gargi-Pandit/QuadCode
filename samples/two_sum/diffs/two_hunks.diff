@@ -1,0 +1,14 @@
+--- a/solution.py
++++ b/solution.py
+@@ -1,3 +1,5 @@
+ def two_sum(nums: list[int], target: int) -> list[int]:
+     """Return indices [i, j] (i < j) with nums[i] + nums[j] == target, or [] if none."""
++    if len(nums) < 2:
++        return []
+     seen: dict[int, int] = {}
+@@ -6,4 +8,4 @@
+         if complement in seen:
+             return [seen[complement], i]
+-        seen[value] = i
++        seen.setdefault(value, i)
+     return []

@@ -1,0 +1,10 @@
+--- a/solution.py
++++ b/solution.py
+@@ -12,4 +12,4 @@
+     for i, value in enumerate(nums):
+         complement = target - value
+-        if complement in seen:
+-            return [seen[complement], i]
++        j = seen.get(complement)
++        if j is not None:
++            return [j, i]

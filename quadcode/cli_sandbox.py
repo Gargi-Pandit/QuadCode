@@ -18,7 +18,7 @@ from quadcode.tables import format_table
 from quadcode.testing import load_test_cases, run_suite
 
 
-def _sandbox_config(args: argparse.Namespace) -> SandboxConfig:
+def sandbox_config(args: argparse.Namespace) -> SandboxConfig:
     cfg = load_config(args.config).sandbox
     updates: dict[str, Any] = {}
     if getattr(args, "backend", None):
@@ -30,7 +30,7 @@ def _sandbox_config(args: argparse.Namespace) -> SandboxConfig:
 
 def _cmd_sandbox_info(args: argparse.Namespace) -> int:
     try:
-        cfg = _sandbox_config(args)
+        cfg = sandbox_config(args)
         sandbox, reason = select_sandbox(cfg)
     except ConfigError as exc:
         print(f"config error: {exc}", file=sys.stderr)
@@ -85,7 +85,7 @@ def print_suite(suite: SuiteRun, source: str, tests: list[TestCase]) -> None:
 
 def _cmd_test_solution(args: argparse.Namespace) -> int:
     try:
-        cfg = _sandbox_config(args)
+        cfg = sandbox_config(args)
         tests = load_test_cases(args.tests)
         sandbox, reason = select_sandbox(cfg)
     except ConfigError as exc:

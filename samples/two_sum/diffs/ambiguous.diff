@@ -1,0 +1,7 @@
+--- a/pair_helpers.py
++++ b/pair_helpers.py
+@@ @@
+     if len(nums) < 2:
+-        return []
++        raise ValueError("need at least two numbers")
+     seen: dict[int, int] = {}

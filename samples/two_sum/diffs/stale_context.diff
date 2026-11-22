@@ -1,0 +1,8 @@
+--- a/solution.py
++++ b/solution.py
+@@ -3,4 +3,4 @@
+     lookup: dict[int, int] = {}
+     for i, value in enumerate(nums):
+-        complement = target - value
++        complement: int = target - value
+         if complement in lookup:

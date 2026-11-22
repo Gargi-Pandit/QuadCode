@@ -1,0 +1,10 @@
+--- a/solution.py
++++ b/solution.py
+@@ -1,5 +1,7 @@
+ def two_sum(nums: list[int], target: int) -> list[int]:
+     """Return indices [i, j] (i < j) with nums[i] + nums[j] == target, or [] if none."""
++    if not isinstance(nums, list):
++        raise TypeError("nums must be a list of integers")
+     seen: dict[int, int] = {}
+     for i, value in enumerate(nums):
+         complement = target - value
