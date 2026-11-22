@@ -1,4 +1,4 @@
-"""Shared fixtures. All tests are offline and use the mock provider."""
+"""Shared fixtures. All tests are offline: real HTTP transport is blocked for every test."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
 
 from quadcode.cache import DiskCache
@@ -39,6 +40,21 @@ BASE_CONFIG: dict[str, Any] = {
     "max_tokens": {"analysis": 100, "initial": 300, "review": 200, "modify": 200, "challenge": 80},
     "run": {"rounds": 3},
 }
+
+
+class NetworkBlocked(RuntimeError):
+    """A test tried to reach the real network."""
+
+
+@pytest.fixture(autouse=True)
+def _block_network(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Any request through httpx's real transport fails the test. Use httpx.MockTransport instead,
+    or patch ``httpx.HTTPTransport.handle_request`` with a fake on purpose (CLI tests)."""
+
+    def refuse(self: httpx.HTTPTransport, request: httpx.Request) -> httpx.Response:
+        raise NetworkBlocked(f"tests must not reach the network: {request.method} {request.url}")
+
+    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", refuse)
 
 
 class FakeClock:

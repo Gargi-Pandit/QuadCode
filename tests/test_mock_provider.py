@@ -114,10 +114,11 @@ def test_timeout_injection_and_exact_tag_precedence() -> None:
     assert prov.complete(_req(CallType.MODIFY, "round-2")).text == "any"
 
 
-def test_unregistered_provider_kind_is_reported() -> None:
+def test_unregistered_provider_kind_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
+    from quadcode import providers
     from quadcode.config import ProviderConfig, Secrets
-    from quadcode.providers import UnsupportedProviderError, build_client
 
+    monkeypatch.delitem(providers.REGISTRY, "gemini")
     cfg = ProviderConfig(kind="gemini", api_key_env="GEMINI_API_KEY", rpm=1, tpm=1)
-    with pytest.raises(UnsupportedProviderError, match="gemini"):
-        build_client("gemini", cfg, Role.GENERATOR, Secrets({}))
+    with pytest.raises(providers.UnsupportedProviderError, match="gemini"):
+        providers.build_client("gemini", cfg, Role.GENERATOR, Secrets({}))
