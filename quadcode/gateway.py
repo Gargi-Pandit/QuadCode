@@ -20,7 +20,7 @@ from __future__ import annotations
 import random
 import threading
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Generic, TypeVar
@@ -38,6 +38,7 @@ from quadcode.runlog import RunLog
 from quadcode.schemas import AgentStatus, CallRecord, CallStatus, CallType, Role
 
 T = TypeVar("T", bound=BaseModel)
+Check = Callable[[T], str | None]
 
 
 EXCERPT_HEAD = 400
@@ -198,29 +199,32 @@ class LLMGateway:
         schema: type[T],
         tag: str = "",
         choice: int | None = None,
+        check: Check[T] | None = None,
     ) -> CallOutcome[T]:
         """Ask ``role`` and return its first usable answer, trying the slot's fallbacks in order.
 
         ``choice`` pins the call to one of the slot's models (no fallback), e.g. for smoke checks.
+        ``check`` returns a problem description for an answer that parses but cannot be used; such an
+        answer is invalid output (repaired like a schema error, never cached, and a cached one is not reused).
         """
         choices = self.config.agent(role).choices()
         if choice is not None:
             if not 0 <= choice < len(choices):
                 raise ValueError(f"agent '{role.value}' has no model #{choice}")
             prep = self._prepare(role, choice, call_type, system, prompt, tag)
-            hit = self._from_cache(prep, schema)
-            return hit if hit is not None else self._send_and_repair(prep, system, prompt, schema)[0]
+            hit = self._from_cache(prep, schema, check)
+            return hit if hit is not None else self._send_and_repair(prep, system, prompt, schema, check)[0]
 
         order = [self._prepare(role, i, call_type, system, prompt, tag)
                  for i in range(self.active_choice(role), len(choices))]
         # An answer this exact call already got from any of the remaining models is reused first.
         for prep in order:
-            hit = self._from_cache(prep, schema)
+            hit = self._from_cache(prep, schema, check)
             if hit is not None:
                 return hit
         failures: list[CallOutcome[T]] = []
         for prep in order:
-            result, provider_failed = self._send_and_repair(prep, system, prompt, schema)
+            result, provider_failed = self._send_and_repair(prep, system, prompt, schema, check)
             if result.ok:
                 return result
             failures.append(result)
@@ -233,20 +237,20 @@ class LLMGateway:
         return CallOutcome(role, call_type, last.provider, last.model, AgentStatus.UNAVAILABLE, None,
                            last.raw_text, f"all {len(failures)} configured models failed: {combined}")
 
-    def _send_and_repair(self, prep: _Prepared, system: str, prompt: str,
-                         schema: type[T]) -> tuple[CallOutcome[T], bool]:
+    def _send_and_repair(self, prep: _Prepared, system: str, prompt: str, schema: type[T],
+                         check: Check[T] | None = None) -> tuple[CallOutcome[T], bool]:
         """Send to one model; if its answer fails validation, ask it to fix the answer before giving up on it."""
-        result, provider_failed = self._send(prep, system, schema)
+        result, provider_failed = self._send(prep, system, schema, check)
         for n in range(1, self.config.run.repair_attempts + 1):
             if result.ok or provider_failed or result.error is None:
                 break
             previous = self.secrets.redact(result.raw_text) if result.raw_text else None
             fix = repair_prompt(prompt, previous, result.error, result.error.startswith("output hit max_tokens"))
             rprep = self._prepare(prep.role, prep.index, prep.call_type, system, fix, prep.tag, repair=n)
-            hit = self._from_cache(rprep, schema)
+            hit = self._from_cache(rprep, schema, check)
             if hit is not None:
                 return hit, False
-            result, provider_failed = self._send(rprep, system, schema)
+            result, provider_failed = self._send(rprep, system, schema, check)
         return result, provider_failed
 
     def _prepare(self, role: Role, index: int, call_type: CallType, system: str, prompt: str,
@@ -282,7 +286,7 @@ class LLMGateway:
         return CallOutcome(prep.role, prep.call_type, prep.choice.provider, prep.choice.model, status, data, raw,
                            self.secrets.redact(error) if error else None)
 
-    def _from_cache(self, prep: _Prepared, schema: type[T]) -> CallOutcome[T] | None:
+    def _from_cache(self, prep: _Prepared, schema: type[T], check: Check[T] | None = None) -> CallOutcome[T] | None:
         cached = self.cache.get(prep.key)
         if cached is None:
             return None
@@ -290,11 +294,14 @@ class LLMGateway:
             data = parse_model(cached.text, schema)
         except (JSONExtractionError, ValidationError):
             return None
+        if check is not None and check(data) is not None:
+            return None
         self._record(**prep.base, attempt=1, tokens_in=cached.tokens_in, tokens_out=cached.tokens_out,
                      tokens_estimated=cached.tokens_estimated, latency_s=0.0, cache_hit=True, status=CallStatus.OK)
         return self._outcome(prep, AgentStatus.CACHED, data, cached.text, None)
 
-    def _send(self, prep: _Prepared, system: str, schema: type[T]) -> tuple[CallOutcome[T], bool]:
+    def _send(self, prep: _Prepared, system: str, schema: type[T],
+              check: Check[T] | None = None) -> tuple[CallOutcome[T], bool]:
         """One model's attempt (with that provider's retries). Returns the outcome and whether the provider failed."""
         choice = prep.choice
         pcfg = self.config.providers[choice.provider]
@@ -346,6 +353,12 @@ class LLMGateway:
             if resp.truncated:
                 msg = (f"output hit max_tokens={prep.max_tokens} (finish_reason={resp.finish_reason}) and was cut "
                        f"off; {msg}")
+            self._record(**base, attempt=last_attempt, **usage, status=CallStatus.INVALID_OUTPUT, error=msg,
+                         output_excerpt=self.secrets.redact(output_excerpt(resp.text)))
+            return self._outcome(prep, AgentStatus.UNAVAILABLE, None, resp.text, msg), False
+        problem = check(data) if check is not None else None
+        if problem is not None:
+            msg = f"invalid output for {schema.__name__}: {problem}"
             self._record(**base, attempt=last_attempt, **usage, status=CallStatus.INVALID_OUTPUT, error=msg,
                          output_excerpt=self.secrets.redact(output_excerpt(resp.text)))
             return self._outcome(prep, AgentStatus.UNAVAILABLE, None, resp.text, msg), False

@@ -49,6 +49,7 @@ from quadcode.schemas import (
     TestStatus,
 )
 from quadcode.selection import rank_versions
+from quadcode.testargs import suite_check
 from quadcode.testing import load_test_cases
 from quadcode.versions import VersionStore
 
@@ -162,9 +163,10 @@ class Orchestrator:
         self._begin(phase)
         spec = self.ctx.spec
         missing = [r for r in self.ctx.roles if r not in self.state.initial]
+        tests_fit = suite_check(spec.signature)
         result = self.ctx.pool.run({
             r: (lambda a: a.ask(CallType.INITIAL, initial_prompt(self.problem, spec, a.role is Role.VALIDATOR),
-                                InitialSolution, "initial"))
+                                InitialSolution, "initial", check=tests_fit if a.role is Role.VALIDATOR else None))
             for r in missing})
         for role, outcome in result.outcomes.items():
             if outcome.ok:

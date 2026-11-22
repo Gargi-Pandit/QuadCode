@@ -62,8 +62,9 @@ def repair_prompt(prompt: str, previous: str | None, problem: str, cut_off: bool
     elif previous:
         parts += ["Your previous answer was:", truncate(previous, REPAIR_PREVIOUS_CHARS)]
     parts.append("JSON allows only literal values: write 1000000000, not 10**9 or 1e9 arithmetic; null, true "
-                 "and false, not None, True and False; no comments and no trailing commas. Inputs too large to "
-                 "write out belong in a test's \"generator\" expression, not in \"args\".")
+                 "and false, not None, True and False; no comments and no trailing commas. No Python inside "
+                 "JSON values: no [x] * 1000, no list comprehensions, no range(...) or other calls. Inputs too "
+                 "large to write out belong in a test's \"generator\" expression (a string), not in \"args\".")
     parts.append("Reply again with the complete JSON object only, with that problem fixed.")
     return "\n".join(parts)
 
@@ -130,8 +131,9 @@ TEST_FIELDS = {
     "id": "unique id such as T01",
     "category": "normal | boundary | adversarial | performance",
     "description": "what the test checks",
-    "args": "list of positional arguments as literal JSON values: write 1000000000, never an expression such "
-            "as 10**9; inputs that must be computed go in generator",
+    "args": "list of positional arguments as literal JSON values of the parameter types (a list is a JSON array, "
+            "never a string holding Python source): write 1000000000, never an expression such as 10**9 or "
+            "[0] * 1000; inputs that must be computed go in generator",
     "kwargs": "object of keyword arguments",
     "generator": "optional Python expression (not a lambda or function) that evaluates to a pair "
                  "(list_of_args, dict_of_kwargs), e.g. ([list(range(100000)), 199999], {}), for large inputs; "

@@ -32,8 +32,10 @@ class Agent:
     def model(self) -> str:
         return self.gateway.config.agent(self.role).model
 
-    def ask[T: BaseModel](self, call_type: CallType, prompt: str, schema: type[T], tag: str) -> CallOutcome[T]:
-        return self.gateway.call(self.role, call_type, system_prompt(self.role), prompt, schema, tag=tag)
+    def ask[T: BaseModel](self, call_type: CallType, prompt: str, schema: type[T], tag: str,
+                          check: Callable[[T], str | None] | None = None) -> CallOutcome[T]:
+        return self.gateway.call(self.role, call_type, system_prompt(self.role), prompt, schema, tag=tag,
+                                 check=check)
 
 
 Task = Callable[[Agent], CallOutcome[Any]]
