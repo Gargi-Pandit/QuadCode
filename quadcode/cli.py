@@ -6,6 +6,7 @@ import argparse
 import sys
 from collections.abc import Sequence
 
+from quadcode.cli_providers import add_provider_commands
 from quadcode.cli_report import add_report_command
 from quadcode.cli_sandbox import add_sandbox_commands
 from quadcode.cli_solve import add_solve_command
@@ -22,7 +23,7 @@ def _cmd_check_config(args: argparse.Namespace) -> int:
         return 2
     secrets = load_secrets(config, env_file=args.env_file)
     rows = config.describe_agents()
-    headers = ["role", "label", "provider", "kind", "model", "rpm", "tpm"]
+    headers = ["role", "label", "provider", "kind", "model", "rpm", "tpm", "fallbacks"]
     print(format_table(headers, [[str(r[h]) for h in headers] for r in rows]))
     print()
     for name, prov in config.providers.items():
@@ -41,6 +42,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
     check = sub.add_parser("check-config", help="validate config.yaml and show the agent slots")
     check.set_defaults(func=_cmd_check_config)
+    add_provider_commands(sub)
     add_solve_command(sub)
     add_report_command(sub)
     add_sandbox_commands(sub)

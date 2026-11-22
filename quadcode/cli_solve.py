@@ -6,19 +6,28 @@ import argparse
 import re
 import secrets as pysecrets
 import sys
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from quadcode.cli_report import print_report_paths
-from quadcode.config import AppConfig, ConfigError, load_config, load_secrets, parse_config
+from quadcode.config import (
+    AppConfig,
+    ConfigError,
+    Secrets,
+    load_config,
+    load_secrets,
+    missing_keys,
+    parse_config,
+)
 from quadcode.gateway import LLMGateway
 from quadcode.modifications import ModificationLedger
 from quadcode.orchestrator import Orchestrator
-from quadcode.providers import UnsupportedProviderError
+from quadcode.providers import MissingAPIKeyError, UnsupportedProviderError
 from quadcode.report import write_report
 from quadcode.runstate import ResumeError, load_state
-from quadcode.sandbox import SandboxUnavailable, select_sandbox
+from quadcode.sandbox import Sandbox, SandboxUnavailable, select_sandbox
 from quadcode.schemas import Role, RunStatus, RunSummary
 from quadcode.tables import format_table
 
@@ -130,17 +139,35 @@ def _cmd_solve(args: argparse.Namespace) -> int:
         run_id = args.run_id or _new_run_id(problem_path)
         run_dir = runs_dir / run_id
 
+    secrets = load_secrets(config, env_file=args.env_file)
+    if not report_missing_keys(config, secrets):
+        return 2
     try:
         sandbox, reason = select_sandbox(config.sandbox)
-        secrets = load_secrets(config, env_file=args.env_file)
         gateway = LLMGateway.from_config(config, secrets, run_dir, budget_calls=args.budget_calls)
     except SandboxUnavailable as exc:
         print(f"sandbox unavailable: {exc}", file=sys.stderr)
         return 2
-    except UnsupportedProviderError as exc:
-        print(f"{exc}. Real providers are not wired yet; run with --mock.", file=sys.stderr)
+    except (UnsupportedProviderError, MissingAPIKeyError) as exc:
+        print(f"cannot build provider clients: {exc}", file=sys.stderr)
         return 2
+    try:
+        return _run(args, config, gateway, sandbox, reason, run_dir, run_id, rounds)
+    finally:
+        gateway.close()
 
+
+def report_missing_keys(config: AppConfig, secrets: Secrets, roles: Iterable[Role] | None = None) -> bool:
+    """Print every missing API key and return False if any is missing. No request is made."""
+    missing = missing_keys(config, secrets, roles)
+    for provider, env in missing:
+        print(f"missing API key: provider '{provider}' needs {env} (set it in .env or the environment)",
+              file=sys.stderr)
+    return not missing
+
+
+def _run(args: argparse.Namespace, config: AppConfig, gateway: LLMGateway, sandbox: Sandbox, reason: str,
+         run_dir: Path, run_id: str, rounds: int) -> int:
     print(f"sandbox: {sandbox.name} ({reason})")
     if args.mock:
         scen = {config.provider_for(r).scenario for r in Role}

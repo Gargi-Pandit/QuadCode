@@ -73,15 +73,30 @@ def test_usage_errors(cfg_path: Path, tmp_path: Path, capsys: pytest.CaptureFixt
     assert "differs" in capsys.readouterr().err
 
 
-def test_real_providers_are_not_wired(cfg_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_missing_key_stops_before_any_request(cfg_path: Path, capsys: pytest.CaptureFixture[str],
+                                              monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("QC_TEST_MISSING_KEY", raising=False)
     data = yaml.safe_load(cfg_path.read_text())
     data["providers"]["remote"] = {"kind": "openai_compat", "base_url": "https://example.invalid/v1",
-                                   "api_key_env": "X_KEY", "rpm": 1, "tpm": 1000}
+                                   "api_key_env": "QC_TEST_MISSING_KEY", "rpm": 1, "tpm": 1000}
     data["agents"]["generator"] = {"provider": "remote", "model": "some-model"}
     cfg_path.write_text(yaml.safe_dump(data))
     assert main(_cli(cfg_path, PROBLEM, "--no-cache", "--run-id", "r4")) == 2
-    assert "run with --mock" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "missing API key: provider 'remote' needs QC_TEST_MISSING_KEY" in err
+    assert not (cfg_path.parent / "runs" / "r4").exists()
+    # --mock swaps the real slot out, so the same config runs offline
     assert main(_cli(cfg_path, PROBLEM, "--mock", "--no-cache", "--run-id", "r5", "--rounds", "1")) == 0
+
+
+def test_repo_config_runs_in_mock_mode(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    repo_cfg = Path(__file__).resolve().parents[1] / "config.yaml"
+    args = ["--config", str(repo_cfg), "--env-file", str(tmp_path / "none.env"), "solve", PROBLEM, "--mock",
+            "--no-cache", "--run-id", "repo", "--rounds", "1", "--runs-dir", str(tmp_path / "runs"),
+            "--backend", "subprocess"]
+    assert main(args) == 0
+    out = capsys.readouterr().out
+    assert "mock/mock-generator-v1" in out
 
 
 def test_mock_config_replaces_real_slots() -> None:
