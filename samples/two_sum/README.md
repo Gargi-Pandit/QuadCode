@@ -20,3 +20,24 @@ Example:
 ```bash
 quadcode test-solution samples/two_sum/p1.py --tests samples/two_sum/tests.json --entry two_sum
 ```
+
+## Full mock run and its report
+
+`problem.md` is the problem statement for a full pipeline run. In mock mode the agent answers
+come from the `two_sum` scenario, and the run writes `report.md` and `report.html` into its run
+directory when it ends:
+
+```bash
+quadcode solve samples/two_sum/problem.md --mock --rounds 3 --run-id report-demo
+```
+
+Rebuild the report from the run's logs at any time, with no API calls:
+
+```bash
+quadcode report report-demo
+```
+
+Expected in the report: ten numbered sections after a run overview; the validator UNAVAILABLE
+in the review phase; V0 copied from G1; M-001 (reviewer) accepted into V1; M-002 (optimizer)
+rejected on T03 with split challenge verdicts; early stop after round 2; and a `measured` or
+`theoretical` label on every number.

@@ -129,3 +129,33 @@ Append-only. One entry per milestone.
 - Test expected values come from the validator agent and can be wrong. Tests failing on every initial version are flagged `suspect_tests` but kept. Hidden tests come with the evaluation harness.
 - Agents cannot withdraw a proposal yet: every record is decided in the round that created it, so nothing stays pending to withdraw.
 - No report yet (next milestone); `summary.json` and the CLI table are the only human-readable outputs.
+
+---
+
+## M5: Report generator, Markdown and HTML (2026-11-22)
+
+**Approved plan (short):** turn a run directory into `report.md` and `report.html`, built only from its records (events.jsonl, calls.jsonl, modifications.json, versions/, tests.json, test_suite.json, benchmark.json, summary.json, problem.md, config.json). Ten spec sections plus availability, token/cost and contribution tables. Parts of a run that never happened say "Not reached" and show no numbers. Optional `pricing:` block for cost estimates. `solve` writes the report at the end; `quadcode report <run>` rebuilds it with no API calls.
+
+**Key decisions**
+- One format-neutral document tree (`report/doc.py`) rendered by two small renderers, so Markdown and HTML always carry the same content. No new dependency.
+- All agent text is treated as untrusted. HTML escapes everything and has no scripts, external resources or links other than in-page anchors. Markdown backslash-escapes inline markup and block markers at line starts, and code fences are longer than any backtick run in the code.
+- `state.json` is not read: every fact the report needs is in the event log. Sections cite `events:<line>` and file names, and the output is deterministic (no generation timestamp), so regenerating a run's report gives identical bytes.
+- Disagreement detection is mechanical only: split challenge verdicts, and verdicts that differ from the decision. Free-text review disagreement is shown side by side per target and the report says it is not detected by meaning.
+- Runtime ratios between the initial and final versions count as a difference only when the min-max ranges of the timed runs do not overlap; otherwise the report says "not distinguishable".
+- Final complexity is reported as the V0 source agent's claim, marked "not re-derived after M-xxx" when accepted changes exist.
+- Prices are keyed `provider/model`, excluded from the resume fingerprint, and taken from `config.yaml` at report time. The cost is labeled an estimate, not a billed amount. Tokens of cache hits and budget stops are not counted.
+
+**Deviations from plan**
+- The report is a package `quadcode/report/` (data, doc, fmt, render_md, render_html, tables, sections_problem/log/rounds/results/eval) instead of a single `report.py`.
+- Added a "Run overview" section before section 1 for status, warnings, agent slots, availability and the token/cost table. The contribution table sits in section 9.
+- `quadcode report` takes prices from `--config`. If that config cannot be loaded it still writes the report, with cost "not configured".
+
+**Built**
+- `quadcode/report/` (11 modules), `quadcode/cli_report.py`; `ModelPrice`, `AppConfig.pricing` and `price_for()` in config; `pricing: {}` in `config.yaml`; `solve` writes the report after every outcome, including aborts and failures. A report error is printed but does not change the exit code.
+- `samples/two_sum/README.md`: the full mock run and report commands with the expected outcome.
+
+**Tests:** `pytest`: 401 passed, 0 skipped, 0 failed (~139 s), including the 7 Docker tests. 47 tests are new: renderer escaping, HTML well-formedness and the no-active-content check; the full two_sum report checked against its records (benchmark numbers equal benchmark.json, token totals equal calls.jsonl, every `events:N` citation exists, provider/model only from config.json, line credit from stored origins, byte-identical regeneration touching no other file); six budget-abort points plus no-suite, all-unavailable, clarification, failed analysis, hostile agent text and a damaged run; CLI; pricing.
+
+**Open issues**
+- `test_sandbox_docker.py::test_memory_cap_stops_bomb` failed once during the full suite and passes on its own. The memory bomb likely hits the per-call timeout before the cap under load. This is sandbox code from an earlier milestone and was not changed here.
+- The report is regenerated in place (`report.md`/`report.html` are derived files). Versions and records are never touched.

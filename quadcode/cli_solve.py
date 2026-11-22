@@ -10,11 +10,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from quadcode.cli_report import print_report_paths
 from quadcode.config import AppConfig, ConfigError, load_config, load_secrets, parse_config
 from quadcode.gateway import LLMGateway
 from quadcode.modifications import ModificationLedger
 from quadcode.orchestrator import Orchestrator
 from quadcode.providers import UnsupportedProviderError
+from quadcode.report import write_report
 from quadcode.runstate import ResumeError, load_state
 from quadcode.sandbox import SandboxUnavailable, select_sandbox
 from quadcode.schemas import Role, RunStatus, RunSummary
@@ -162,6 +164,11 @@ def _cmd_solve(args: argparse.Namespace) -> int:
         return 2
     summary = orch.run()
     print_summary(summary, run_dir)
+    try:
+        print_report_paths(write_report(run_dir, pricing=config))
+    except Exception as exc:  # the run's records are complete; a report failure must not change the outcome
+        print(f"report could not be written: {type(exc).__name__}: {exc}; "
+              f"retry with: quadcode report {summary.run_id}", file=sys.stderr)
     return EXIT_CODES[summary.status]
 
 

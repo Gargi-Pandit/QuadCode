@@ -6,6 +6,7 @@ import argparse
 import sys
 from collections.abc import Sequence
 
+from quadcode.cli_report import add_report_command
 from quadcode.cli_sandbox import add_sandbox_commands
 from quadcode.cli_solve import add_solve_command
 from quadcode.cli_versions import add_version_commands
@@ -41,6 +42,7 @@ def build_parser() -> argparse.ArgumentParser:
     check = sub.add_parser("check-config", help="validate config.yaml and show the agent slots")
     check.set_defaults(func=_cmd_check_config)
     add_solve_command(sub)
+    add_report_command(sub)
     add_sandbox_commands(sub)
     add_version_commands(sub)
     return parser
