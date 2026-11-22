@@ -2,7 +2,10 @@
 # Every report, UI view and log line shows the provider/model configured here.
 
 # Provider blocks. Rate limits (rpm/tpm) are per block, so agents sharing a block share its quota.
+# All real blocks below are FREE tiers (no card, no paid credits). Free limits change often; check
+# each provider's console. Model ids are confirmed with `quadcode models <provider>`.
 providers:
+  # Scripted fake agents for offline development (`quadcode solve ... --mock` uses this block).
   mock:
     kind: mock
     scenario: two_sum
@@ -13,59 +16,190 @@ providers:
     backoff_base_s: 0.01
     backoff_cap_s: 0.05
 
-  # Real providers are wired in milestone M6. Example blocks (uncomment and point agents at them):
-  # gemini:
-  #   kind: gemini
-  #   api_key_env: GEMINI_API_KEY
-  #   rpm: 10
-  #   tpm: 250000
-  #   timeout_s: 120
-  #   max_retries: 4
-  # openrouter:
-  #   kind: openai_compat
-  #   base_url: https://openrouter.ai/api/v1
-  #   api_key_env: OPENROUTER_API_KEY
-  #   rpm: 20
-  #   tpm: 100000
-  #   timeout_s: 120
-  #   max_retries: 4
+  # Google AI Studio free tier. Gemma models allow ~30 RPM, ~15K TPM and ~14,400 requests/day.
+  # (Gemini Flash allows only ~20 requests/day; one run needs ~8 generator calls.) When Google is
+  # overloaded it answers 503 "high demand"; one retry, then the generator moves to its fallback.
+  gemini:
+    kind: gemini
+    api_key_env: GEMINI_API_KEY
+    rpm: 25
+    tpm: 15000
+    timeout_s: 120
+    max_retries: 1
+    backoff_base_s: 2
+    backoff_cap_s: 60
+    max_retry_after_s: 90
+
+  # Groq free tier: 30 RPM, 8K tokens/min, 1K requests/day for gpt-oss-120b.
+  groq:
+    kind: openai_compat
+    base_url: https://api.groq.com/openai/v1
+    api_key_env: GROQ_API_KEY
+    rpm: 28
+    tpm: 8000
+    timeout_s: 120
+    max_retries: 3
+    backoff_base_s: 2
+    backoff_cap_s: 60
+    max_retry_after_s: 90
+
+  # Same Groq account, separate block: Groq's free limits are per model (Qwen: 30 RPM, 8K TPM,
+  # 1K requests/day), so the reviewer gets its own limiter instead of sharing the optimizer's.
+  groq_qwen:
+    kind: openai_compat
+    base_url: https://api.groq.com/openai/v1
+    api_key_env: GROQ_API_KEY
+    rpm: 28
+    tpm: 8000
+    timeout_s: 120
+    max_retries: 3
+    backoff_base_s: 2
+    backoff_cap_s: 60
+    max_retry_after_s: 90
+
+  # Same Groq account, separate block for gpt-oss-20b (30 RPM, 8K TPM, 1K requests/day per model).
+  groq_oss20:
+    kind: openai_compat
+    base_url: https://api.groq.com/openai/v1
+    api_key_env: GROQ_API_KEY
+    rpm: 28
+    tpm: 8000
+    timeout_s: 120
+    max_retries: 3
+    backoff_base_s: 2
+    backoff_cap_s: 60
+    max_retry_after_s: 90
+
+  # NVIDIA NIM (https://integrate.api.nvidia.com/v1, NVIDIA_API_KEY) is not used: on 2026-11-22 its free
+  # queue took 37-278 s for a one-line reply and timed out at 300 s on every full-size request
+  # (mistral-large-4 x4, kimi-k3.1-pro x1, gemma-4-31b-it x1).
+
+  # DeepSeek's own API (OpenAI-compatible; models deepseek-flash, deepseek-v4-pro). Prepaid only. On
+  # 2026-11-22 a new account had no free grant (HTTP 402 Insufficient Balance), so no slot uses it.
+  # With no card and no top-up it cannot charge. DeepSeek publishes no fixed rate limit.
+  deepseek:
+    kind: openai_compat
+    base_url: https://api.deepseek.com/v1
+    api_key_env: DEEPSEEK_API_KEY
+    rpm: 30
+    tpm: 200000
+    timeout_s: 300
+    max_retries: 3
+    backoff_base_s: 2
+    backoff_cap_s: 60
+    max_retry_after_s: 90
+
+  # OpenRouter ":free" models: 20 RPM and 50 requests/day per account, failed requests included.
+  # Do not buy credits.
+  openrouter:
+    kind: openai_compat
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: OPENROUTER_API_KEY
+    rpm: 15
+    tpm: 100000
+    timeout_s: 180
+    max_retries: 2
+    backoff_base_s: 3
+    backoff_cap_s: 60
+    max_retry_after_s: 90
+
+  # The Messages API has no free tier; the client exists for anyone with a key.
   # anthropic:
   #   kind: anthropic
   #   api_key_env: ANTHROPIC_API_KEY
   #   rpm: 5
   #   tpm: 20000
   #   timeout_s: 120
-  #   max_retries: 4
+  #   max_retries: 3
 
-# The four agent slots, identified by role. Each slot gets its own independently constructed client.
+# The four agent slots, identified by role. Each slot gets its own independently constructed client,
+# also when two slots share a provider block. `quadcode solve --mock` replaces all four with mocks.
+# request_options: extra request fields for that provider (top level of the body for openai_compat,
+#   generationConfig for gemini). inline_system: send the system text inside the user message.
+# fallbacks: models tried in order when the one before gives no usable answer. A provider failure
+#   (error, rate limit, timeout, reasoning that used the whole max_tokens) moves the slot to its next
+#   model for the rest of the run; an invalid answer moves it for that call only. Every attempt is
+#   logged with its real provider/model, and reports name the model that actually answered.
+#
+# Free-tier line-up (2026-11-22). Everything runs on Groq, the only free provider that answered every
+# request quickly. Groq serves three chat models, so two slots share one: the optimizer and the validator
+# both use gpt-oss-120b. They still work independently: separate clients, separate role instructions
+# and prompts, and the validator alone writes the test suite. Every slot falls back to another Groq model.
+# Tried and dropped: Google (503 "high demand" all day), NVIDIA (timeouts, see above), OpenRouter free
+# models (Gemma, Ling, ERNIE: 429 "rate-limited upstream"; Nemotron: spent its whole token budget on
+# reasoning in most review/modify/challenge calls and wrote one wrong test), DeepSeek (no free grant).
+# With paid keys the spec's intended models (Gemini, Claude, GPT, DeepSeek) go here unchanged.
 agents:
-  generator:
-    provider: mock
-    model: mock-generator-v1
+  generator:                     # spec default: Gemini
+    provider: groq_oss20
+    model: openai/gpt-oss-20b
     temperature: 0.2
-  reviewer:
-    provider: mock
-    model: mock-reviewer-v1
+    request_options:
+      reasoning_effort: low      # reasoning tokens count against max_tokens
+    fallbacks:
+      - provider: groq
+        model: openai/gpt-oss-120b
+        temperature: 0.2
+        request_options:
+          reasoning_effort: low
+  reviewer:                      # spec default: Claude (no free API)
+    provider: groq_qwen
+    model: qwen/qwen3.8-27b
     temperature: 0.2
-  optimizer:
-    provider: mock
-    model: mock-optimizer-v1
+    max_tokens:                  # Groq allows Qwen 1,000 output tokens per minute and refuses a request
+      analysis: 800              # asking for more, so every Qwen reply is capped below that
+      initial: 800
+      review: 800
+      modify: 800
+      challenge: 800
+    fallbacks:
+      - provider: groq_oss20
+        model: openai/gpt-oss-20b
+        temperature: 0.2
+        request_options:
+          reasoning_effort: low
+  optimizer:                     # spec default: GPT. gpt-oss is OpenAI's open-weight model.
+    provider: groq
+    model: openai/gpt-oss-120b
     temperature: 0.2
-  validator:
-    provider: mock
-    model: mock-validator-v1
+    request_options:
+      reasoning_effort: low
+    fallbacks:
+      - provider: groq_oss20
+        model: openai/gpt-oss-20b
+        temperature: 0.2
+        request_options:
+          reasoning_effort: low
+  validator:                     # spec default: DeepSeek (no free DeepSeek anywhere)
+    provider: groq               # shares gpt-oss-120b (and its Groq limits) with the optimizer
+    model: openai/gpt-oss-120b
     temperature: 0.2
+    request_options:
+      reasoning_effort: low
+    max_tokens:
+      initial: 5000              # solution plus the test suite; with the prompt it stays under 8K tokens/min
+    fallbacks:
+      - provider: groq_oss20
+        model: openai/gpt-oss-20b
+        temperature: 0.2
+        request_options:
+          reasoning_effort: low
+        max_tokens:
+          initial: 5000
 
-# Two slots may not share the same (provider, model) unless this is set to true explicitly.
-allow_duplicate_models: false
+# No model may appear in two slots unless this is true. True here: Groq has three chat models for
+# four slots (see the agents comment). Reports show which model answered each call.
+allow_duplicate_models: true
 
-# Output token caps per call type.
+# Output token caps per call type. Each request also tells the model its cap (run.state_output_limit),
+# so it shortens the answer to fit instead of being cut off. Caps stay small on purpose: Groq's free
+# tier allows about 8,000 tokens per minute per model.
 max_tokens:
-  analysis: 1200
-  initial: 3000
-  review: 1500
+  analysis: 1000
+  initial: 2500
+  review: 1200
   modify: 1500
-  challenge: 600
+  challenge: 1000
 
 # Execution of generated code. "auto" uses Docker only if the daemon answers and docker_image
 # is already present locally (it is never pulled automatically); otherwise it falls back to a
@@ -108,6 +242,8 @@ pricing: {}
 
 run:
   rounds: 3
+  state_output_limit: true   # tell the model its max_tokens so it fits its answer under the cap
+  repair_attempts: 1         # re-ask the same model once, with the error, when its answer fails validation
   parallel: true
   budget_calls: null
   cache_enabled: true

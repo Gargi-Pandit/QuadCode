@@ -159,3 +159,49 @@ Append-only. One entry per milestone.
 **Open issues**
 - `test_sandbox_docker.py::test_memory_cap_stops_bomb` failed once during the full suite and passes on its own. The memory bomb likely hits the per-call timeout before the cap under load. This is sandbox code from an earlier milestone and was not changed here.
 - The report is regenerated in place (`report.md`/`report.html` are derived files). Versions and records are never touched.
+
+---
+
+## M6: Real providers on free tiers, smoke calls, one real end-to-end run (2026-11-22)
+
+**Approved plan (short):** wire real HTTP clients (`openai_compat`, `gemini`, `anthropic`) with uniform error mapping, keys only from `.env`, every slot on a free tier with no spend. Add `quadcode models <provider>` (catalog listing, no completion call) and `quadcode smoke` (one tiny call per model, no retries, no cache). Then one real `solve` on `samples/two_sum` with `--budget-calls`, and check the report against calls.jsonl.
+
+**Key decisions**
+- httpx only, no vendor SDKs. One error mapping for all providers: 429 → rate limit (honouring Retry-After, retry-after-ms and Google's retryDelay); daily-quota 429s and waits over `max_retry_after_s` → permanent; 408/425/5xx/network → transient; timeouts → ProviderTimeout; a 200 with an error body is mapped by its code. Keys travel only in headers; every error text is redacted. An autouse test guard blocks real network access.
+- Reasoning models: `request_options` (e.g. `reasoning_effort: low`), per-agent `max_tokens` overrides, and a clear error when reasoning used the whole cap and left no answer.
+- **Fallback models per slot** (`agents.<role>.fallbacks`). A failed model hands the same call to the next model in the list. A provider failure moves the slot to its next model for the rest of the run; an invalid answer moves it for that call only. Every attempt is logged with its real provider/model and its position (`choice`), and reports name the model that actually answered. A cached answer from any listed model is reused before any request.
+- **Repair retry** (`run.repair_attempts: 1`): an answer that fails JSON/schema validation goes back to the same model once, with the exact error and the location (`<<HERE>>`), the rejected answer (redacted), and the JSON rules models break most often (no `10**9`, no `None`, no trailing commas). A cut-off answer is asked to be shorter instead.
+- **Output limit in every prompt** (`run.state_output_limit: true`): each request states its token cap and asks for a reply, reasoning included, that fits, preferring a complete JSON object over detail. Caps are sized to what the free tier can deliver, not to ideal answers.
+- **Disputed tests are set aside**: a test that every executed initial implementation fails (at least two) is probably wrong. It no longer ranks versions, decides modifications or verifies the final version. It stays in test_suite.json/tests.json and the run lists it as unresolved. If every test is disputed, the run ends UNVERIFIED.
+- JSON extraction never returns an object nested inside a larger malformed one (it used to return the `{}` from `seen = {}` inside a code string and hide the real error). `args: null`/`kwargs: null` in tests mean "none". Diffs wrapped in `*** Begin Patch`/`*** End Patch` lines are accepted.
+
+**Deviations from plan**
+- Final line-up is **Groq only**, by the user's decision after the alternatives failed (all checked 2026-11-22): Generator gpt-oss-20b; Reviewer qwen3.8-27b; Optimizer and Validator gpt-oss-120b; each slot falls back to another Groq model. Groq serves only three chat models, so `allow_duplicate_models: true`: the Optimizer and Validator share a model but keep separate clients, role instructions and prompts, and only the Validator writes tests. The user approved this explicitly.
+- Tried and dropped, with the measured reason in config.yaml:
+  - Google AI Studio (Gemma 4 31B/26B, Gemini 3.8 Flash): 503 "high demand" all day.
+  - NVIDIA NIM (Kimi K3.1, GLM 5.3, Gemma 4 31B, Mistral Large 4): 37-278 s for one-line replies, 300 s timeouts on every full-size request.
+  - OpenRouter free (Gemma, Ling 3.2, ERNIE 5.5): 429 "rate-limited upstream". Nemotron 3 Ultra / 3.5 Lightning answered, but usually spent the whole cap reasoning; Ultra also wrote Python inside JSON and a wrong test.
+  - DeepSeek's API: 402, no free grant. No free DeepSeek exists anywhere we checked; Cerebras and SambaNova now need a card; ModelScope needs Chinese real-name verification.
+- Ten real runs instead of one. Runs 1-9 each exposed a problem that is now fixed (provider outages, reasoning exhaustion, the JSON extraction bug, `10**9` in JSON, a lambda test generator, patch wrappers, a wrong test that proposals bent the code towards, Qwen's output limit).
+- Groq allows qwen3.8-27b only 1,000 output tokens per minute and refuses a request asking for more, so the Reviewer is capped at 800 tokens for every call type.
+
+**Built**
+- `quadcode/providers/http.py`, `openai_compat.py`, `gemini.py`, `anthropic.py`; registry, `MissingAPIKeyError`, `build_clients` returning one client per listed model.
+- `quadcode/cli_providers.py`: `models`, `smoke`. A missing-key preflight in `solve` and `smoke`.
+- Config: `ModelChoice`/`AgentConfig.fallbacks`, `request_options`, `inline_system`, per-agent `max_tokens`, `max_retry_after_s`, `run.repair_attempts`, `run.state_output_limit`; the duplicate-model check also covers fallbacks (model ids compared without host prefix and `:free`).
+- Gateway: ordered fallbacks, repair retry, output limit note; `CallRecord.choice`, `repair`, `finish_reason`, `output_excerpt`.
+- Orchestrator: disputed tests set aside (`RunState.disputed_tests`). Report: which model answered each slot, fallbacks column, set-aside note; token totals are no longer marked "estimated" because of failed attempts that logged 0 tokens.
+- `config.yaml` (Groq line-up and the record of what was tried), `.env.example` (only `GROQ_API_KEY` needed).
+
+**Real run `real-two-sum-10`** (`quadcode solve samples/two_sum/problem.md --rounds 2 --budget-calls 60 --run-id real-two-sum-10`): **COMPLETED** in about 2 minutes. 29 requests: 26 ok, 2 Groq 429s on Qwen (retried), 1 Qwen answer cut off at 800 tokens and repaired. 42,921 provider-reported tokens. The Validator wrote 10 tests. T07 and T09 were set aside as disputed, and both are wrong by hand: T07 expects `[2,4]` for target 7, but 3+5=8; T09 expects 99998+99999 for target 199998. V0 = C1 (all four initial versions passed the 8 remaining tests; C1 is the smallest). Accepted M-001 (generator) and M-005 (validator), rejected M-002 to M-004 (conflicts with M-001). Final V2 passes every undisputed test. The report lists the real provider/model per slot and per call.
+
+**Tests:** `pytest`: 515 passed, 0 failed (~200 s), fully offline. New in this milestone: HTTP error mapping, the three clients over MockTransport, `models`/`smoke` CLI, provider config, fallbacks (order, stickiness, cache reuse, budget, pinned choice, validation, report naming), repair retry, JSON extraction regressions, null test args, patch wrappers, disputed tests (set aside; whole suite disputed), the token-total label.
+
+**Open issues**
+- Only three distinct models for four slots (Groq's free catalog). The spec's intended Gemini, Claude, GPT and DeepSeek need paid keys; with them, only `config.yaml` changes.
+- The Validator's tests can be wrong (2 of 10 in run 10). Setting them aside keeps wrong tests from deciding anything, but in run 10 it removed the only performance test, so no runtime/memory comparison decided anything.
+- If every initial implementation shares the same bug, a correct test that catches it would be set aside as disputed. It still shows as unresolved in the report.
+- Qwen on Groq: about 1,000 output tokens per minute, so back-to-back Reviewer calls wait on 429s.
+- The Anthropic client is tested offline only. The Gemini client never got a successful live reply (Google was overloaded all day).
+- A slot's fallback position is not kept across `--resume`. A repaired answer is cached under the repair prompt, so a rerun re-sends the original request.
+- `test_sandbox_docker.py::test_memory_cap_stops_bomb` is still occasionally flaky under load (from M5).
