@@ -79,6 +79,14 @@ class Decision(StrEnum):
     PENDING = "pending"
     ACCEPTED = "accepted"
     REJECTED = "rejected"
+    WITHDRAWN = "withdrawn"
+
+
+class VersionKind(StrEnum):
+    INITIAL = "initial"      # G1, C1, P1, D1: blind Phase 2 output
+    REFERENCE = "reference"  # V0: copy of the initial version chosen by evidence
+    CANDIDATE = "candidate"  # <base>+M-xxx: one modification applied to its base, for testing
+    ROUND = "round"          # V1, V2, ...: accepted modifications of a round integrated
 
 
 class TestCategory(StrEnum):
@@ -202,17 +210,44 @@ class ReviewerVerdict(_Frozen):
     comment: str = ""
 
 
+class HunkChange(_Frozen):
+    """One changed block of a modification, located in the base and in the candidate version.
+
+    Only the changed core of a hunk is kept: surrounding context lines are trimmed, so
+    ``original_code`` is exactly what was replaced and ``replacement_code`` what replaced it.
+    """
+
+    index: int = Field(ge=0)
+    old_start: int = Field(ge=0, description="First replaced line in the base (1-based); for a pure "
+                           "insertion, the line the new code was inserted before.")
+    old_count: int = Field(ge=0)
+    new_start: int = Field(ge=0)
+    new_count: int = Field(ge=0)
+    original_code: str
+    replacement_code: str
+    original_location: str
+    new_location: str
+    offset: int | None = Field(default=None, description="Applied line minus the line stated in the "
+                               "hunk header; None if the header stated no line.")
+    whitespace_relaxed: bool = Field(default=False, description="Context matched only after ignoring "
+                                     "trailing whitespace.")
+
+
 class ModificationRecord(_Frozen):
     id: str = Field(pattern=r"^M-\d{3,}$")
     proposed_by: Role
     round_index: int = Field(ge=1)
     base_version: str
-    new_version: str | None = None
+    candidate_version: str | None = Field(default=None, description="Base plus only this change; "
+                                          "the version its tests ran against.")
+    new_version: str | None = Field(default=None, description="Round version the change was integrated into.")
     diff: str
     original_code: str
     replacement_code: str
     original_location: str
     new_location: str | None = None
+    hunks: list[HunkChange] = Field(default_factory=list)
+    apply_error: str | None = None
     justification: str
     expected_impact: str
     disadvantages: str = ""
@@ -222,6 +257,39 @@ class ModificationRecord(_Frozen):
     decision_reason: str = ""
     created_at: str = Field(default_factory=utc_now)
     decided_at: str | None = None
+
+
+class LineOrigin(_Frozen):
+    """Where one line of a stored version came from.
+
+    ``version``/``line`` name the version and line where the text first appeared. Lines of an
+    initial version belong to that slot's agent. A line is attributed to a modification only
+    when a ModificationRecord inserted it.
+    """
+
+    version: str
+    line: int = Field(ge=1)
+    modification_id: str | None = None
+    role: Role | None = None
+
+
+class VersionMeta(_Frozen):
+    label: str
+    kind: VersionKind
+    language: str
+    ext: str
+    sha256: str
+    line_count: int = Field(ge=0)
+    parents: list[str] = Field(default_factory=list)
+    created_by: Role | None = Field(default=None, description="Agent slot of an initial version, or the "
+                                    "proposer of a candidate's modification.")
+    modification_ids: list[str] = Field(default_factory=list)
+    line_origins: list[LineOrigin]
+    line_map_from_parent: list[int | None] | None = Field(
+        default=None, description="Entry i is the line in this version that line i+1 of parents[0] "
+        "became, or None if it was removed.")
+    note: str = ""
+    created_at: str = Field(default_factory=utc_now)
 
 
 class TestResult(_Frozen):
