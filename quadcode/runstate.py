@@ -15,7 +15,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from quadcode.cache import sha256_text
-from quadcode.config import AppConfig
+from quadcode.config import AppConfig, ProviderConfig
 from quadcode.schemas import (
     AgentAvailability,
     InitialSolution,
@@ -66,6 +66,8 @@ class RunState(_State):
     initial: dict[Role, InitialSolution] = Field(default_factory=dict)
     reviews: dict[Role, Review] = Field(default_factory=dict)
     initial_suites: dict[str, SuiteRun] = Field(default_factory=dict)
+    disputed_tests: list[str] = Field(default_factory=list, description="Tests every executed initial "
+                                      "implementation failed. Set aside: not used to rank, accept or verify.")
     reference: SelectionEvidence | None = None
     rounds_state: list[RoundState] = Field(default_factory=list)
     availability: list[AgentAvailability] = Field(default_factory=list)
@@ -92,6 +94,20 @@ def config_fingerprint(config: AppConfig) -> str:
     prices were added.
     """
     data = config.model_dump(mode="json", exclude={"run": True, "sandbox": {"backend"}, "pricing": True})
+    # Settings added after runs already existed are left out while they hold their default, so
+    # those runs stay resumable.
+    for agent in data["agents"].values():
+        if not agent.get("request_options"):
+            agent.pop("request_options", None)
+        if not agent.get("inline_system"):
+            agent.pop("inline_system", None)
+        if not agent.get("max_tokens"):
+            agent.pop("max_tokens", None)
+        if not agent.get("fallbacks"):
+            agent.pop("fallbacks", None)
+    for prov in data["providers"].values():
+        if prov.get("max_retry_after_s") == ProviderConfig.model_fields["max_retry_after_s"].default:
+            prov.pop("max_retry_after_s", None)
     return sha256_text(json.dumps(data, sort_keys=True))
 
 

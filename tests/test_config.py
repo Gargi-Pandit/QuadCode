@@ -42,7 +42,7 @@ def test_unknown_provider(config_dict: dict[str, Any]) -> None:
 
 def test_duplicate_models_rejected_unless_allowed(config_dict: dict[str, Any]) -> None:
     config_dict["agents"]["reviewer"]["model"] = "mock-generator-v1"
-    with pytest.raises(ConfigError, match="same provider/model"):
+    with pytest.raises(ConfigError, match="both list model 'mock-generator-v1'"):
         parse_config(config_dict)
     config_dict["allow_duplicate_models"] = True
     assert parse_config(config_dict).agent(Role.REVIEWER).model == "mock-generator-v1"

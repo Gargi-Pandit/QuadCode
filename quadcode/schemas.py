@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 
 def utc_now() -> str:
@@ -42,6 +42,7 @@ class CallType(StrEnum):
     REVIEW = "review"
     MODIFY = "modify"
     CHALLENGE = "challenge"
+    SMOKE = "smoke"  # connectivity check by `quadcode smoke`; never part of a run
 
 
 class AgentStatus(StrEnum):
@@ -156,6 +157,14 @@ class TestCase(_LLMOutput):
     expect_exception: str | None = None
     compare: Literal["exact", "unordered", "float"] = "exact"
     hidden: bool = False
+
+    @field_validator("args", "kwargs", mode="before")
+    @classmethod
+    def _null_means_empty(cls, value: Any, info: ValidationInfo) -> Any:
+        # Models often write "args": null for a test whose inputs come from ``generator``.
+        if value is None:
+            return [] if info.field_name == "args" else {}
+        return value
 
 
 class InitialSolution(_LLMOutput):
@@ -392,6 +401,12 @@ class CallRecord(_Frozen):
     cache_hit: bool
     status: CallStatus
     error: str | None = None
+    finish_reason: str | None = None  # provider-reported; None for mocks, cache hits and failed attempts
+    output_excerpt: str | None = None  # start and end of a rejected (invalid_output) response
+    choice: int = Field(default=0, ge=0, description="Which of the slot's models made the call: 0 is its first "
+                        "choice, 1 and up its fallbacks in config order.")
+    repair: int = Field(default=0, ge=0, description="0 for the original request; n for the n-th request that "
+                        "asked the same model to fix an answer that failed validation.")
 
 
 class RunEvent(_Frozen):

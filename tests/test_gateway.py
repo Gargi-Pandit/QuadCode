@@ -52,7 +52,7 @@ def test_cache_hit_is_logged_and_free(make_gateway: GatewayFactory) -> None:
     recs = gw.runlog.read_calls()
     assert [r.cache_hit for r in recs] == [False, True]
     assert gw.budget.used == 1
-    client = gw.clients[Role.GENERATOR]
+    client = gw.clients[Role.GENERATOR][0]
     assert isinstance(client, MockProvider) and client.calls_received == 1
 
 
@@ -60,7 +60,7 @@ def test_resume_uses_cache_across_gateways(make_gateway: GatewayFactory) -> None
     _initial(make_gateway(run_name="a"), Role.OPTIMIZER)
     gw2 = make_gateway(run_name="b")
     assert _initial(gw2, Role.OPTIMIZER).status is AgentStatus.CACHED
-    client = gw2.clients[Role.OPTIMIZER]
+    client = gw2.clients[Role.OPTIMIZER][0]
     assert isinstance(client, MockProvider) and client.calls_received == 0
 
 
@@ -101,7 +101,7 @@ def test_always_failing_agent_is_unavailable(make_gateway: GatewayFactory) -> No
     assert len(recs) == 4 and all(r.status is CallStatus.PROVIDER_ERROR for r in recs)
     # failure is not cached: a later call contacts the provider again
     gw.call(Role.VALIDATOR, CallType.REVIEW, "s", "p", Review)
-    client = gw.clients[Role.VALIDATOR]
+    client = gw.clients[Role.VALIDATOR][0]
     assert isinstance(client, MockProvider) and client.calls_received == 8
 
 
@@ -110,8 +110,8 @@ def test_invalid_output_is_unavailable_and_not_cached(make_gateway: GatewayFacto
     gw = make_gateway(scenario=scen)
     out = _initial(gw, Role.GENERATOR)
     assert out.status is AgentStatus.UNAVAILABLE and out.raw_text == "I refuse to answer in JSON."
-    [rec] = gw.runlog.read_calls()
-    assert rec.status is CallStatus.INVALID_OUTPUT
+    records = gw.runlog.read_calls()
+    assert [(r.status, r.repair) for r in records] == [(CallStatus.INVALID_OUTPUT, 0), (CallStatus.INVALID_OUTPUT, 1)]
     assert _initial(gw, Role.GENERATOR).status is AgentStatus.UNAVAILABLE  # retried, not served from cache
 
 
@@ -128,7 +128,7 @@ class _LeakyClient(LLMClient):
 
 def test_secrets_redacted_from_logs_and_outcomes(make_gateway: GatewayFactory, tmp_path: Path) -> None:
     gw = make_gateway(secrets=Secrets({"MY_KEY": "sk-live-123456"}))
-    gw.clients[Role.GENERATOR] = _LeakyClient("mock")
+    gw.clients[Role.GENERATOR] = [_LeakyClient("mock")]
     out = _initial(gw, Role.GENERATOR)
     assert out.status is AgentStatus.UNAVAILABLE
     assert "sk-live-123456" not in (out.error or "")
@@ -139,7 +139,7 @@ def test_secrets_redacted_from_logs_and_outcomes(make_gateway: GatewayFactory, t
 
 def test_requires_distinct_client_instances(make_gateway: GatewayFactory) -> None:
     gw = make_gateway()
-    shared = gw.clients[Role.GENERATOR]
+    shared = gw.clients[Role.GENERATOR][0]
     with pytest.raises(ValueError, match="own client"):
         LLMGateway(gw.config, {r: shared for r in Role}, gw.limiters, gw.cache, gw.runlog, gw.budget, gw.secrets)
 

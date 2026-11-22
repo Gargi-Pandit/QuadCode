@@ -19,7 +19,11 @@ class JSONExtractionError(ValueError):
 
 
 def _balanced_objects(text: str) -> Iterator[str]:
-    """Yield every top-level balanced ``{...}`` span, honoring JSON string escapes."""
+    """Yield every top-level balanced ``{...}`` span, honoring JSON string escapes.
+
+    Spans nested inside an earlier span are never yielded: when a whole answer is malformed, a small
+    object inside it (e.g. ``{}`` in a code string) is not the answer.
+    """
     start = text.find("{")
     while start != -1:
         depth = 0
@@ -48,10 +52,15 @@ def _balanced_objects(text: str) -> Iterator[str]:
         if end == -1:
             return
         yield text[start : end + 1]
-        start = text.find("{", start + 1)
+        start = text.find("{", end + 1)
+
+
+_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 
 
 def _candidates(text: str) -> Iterator[str]:
+    # Reasoning models may prefix their answer with a <think>...</think> trace; it is not the answer.
+    text = _THINK_RE.sub("", text)
     stripped = text.strip()
     yield stripped
     for match in _FENCE_RE.finditer(text):
@@ -62,18 +71,28 @@ def _candidates(text: str) -> Iterator[str]:
 def parse_json_object(text: str) -> dict[str, Any]:
     """Return the first JSON object found in ``text``.
 
-    Order: whole text, fenced blocks, then balanced brace spans scanning left to right.
+    Order (after removing <think>...</think> traces): whole text, fenced blocks, then balanced brace
+    spans scanning left to right.
     """
+    first_error: tuple[str, json.JSONDecodeError] | None = None
     for candidate in _candidates(text):
         if not candidate.startswith("{"):
             continue
         try:
             value = json.loads(candidate)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as err:
+            if first_error is None:
+                first_error = (candidate, err)
             continue
         if isinstance(value, dict):
             return value
-    raise JSONExtractionError("no JSON object found in model output")
+    if first_error is None:
+        raise JSONExtractionError("no JSON object found in model output")
+    candidate, err = first_error
+    near = (candidate[max(0, err.pos - 50): err.pos] + "<<HERE>>" + candidate[err.pos: err.pos + 30])
+    near = near.replace("\n", " ")
+    raise JSONExtractionError(f"the JSON object in the model output is not valid JSON: {err.msg} at line "
+                              f"{err.lineno} column {err.colno}, at <<HERE>> in: {near}")
 
 
 def parse_model(text: str, model: type[T]) -> T:

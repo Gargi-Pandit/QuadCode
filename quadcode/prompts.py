@@ -42,6 +42,32 @@ def system_prompt(role: Role) -> str:
             f"test evidence and measurements, not on opinions.\n{JSON_ONLY}")
 
 
+REPAIR_PREVIOUS_CHARS = 12_000
+
+
+def output_limit_note(max_tokens: int) -> str:
+    """Appended to every request: the reply has a hard size limit, and fitting it matters more than detail."""
+    return (f"\n\nOUTPUT LIMIT: your whole reply, including any reasoning before it, must fit in {max_tokens} "
+            f"tokens (about {max_tokens * 3 // 4} words). Keep it short: brief text fields, no repetition, nothing "
+            "the JSON fields do not ask for. A complete, valid JSON object that fits is required; extra detail is "
+            "not.")
+
+
+def repair_prompt(prompt: str, previous: str | None, problem: str, cut_off: bool) -> str:
+    """The original request again, plus what was wrong with the answer the model gave to it."""
+    parts = [prompt, "", "--- Your previous answer to this request could not be used. ---", f"Problem: {problem}"]
+    if cut_off:
+        parts.append("It was cut off at the output limit. Give a shorter answer: keep every required field, "
+                     "but use brief text and fewer, smaller test cases.")
+    elif previous:
+        parts += ["Your previous answer was:", truncate(previous, REPAIR_PREVIOUS_CHARS)]
+    parts.append("JSON allows only literal values: write 1000000000, not 10**9 or 1e9 arithmetic; null, true "
+                 "and false, not None, True and False; no comments and no trailing commas. Inputs too large to "
+                 "write out belong in a test's \"generator\" expression, not in \"args\".")
+    parts.append("Reply again with the complete JSON object only, with that problem fixed.")
+    return "\n".join(parts)
+
+
 def truncate(text: str, limit: int) -> str:
     text = " ".join(text.split())
     return text if len(text) <= limit else text[: max(0, limit - 3)] + "..."
@@ -104,9 +130,12 @@ TEST_FIELDS = {
     "id": "unique id such as T01",
     "category": "normal | boundary | adversarial | performance",
     "description": "what the test checks",
-    "args": "list of positional arguments (JSON values)",
+    "args": "list of positional arguments as literal JSON values: write 1000000000, never an expression such "
+            "as 10**9; inputs that must be computed go in generator",
     "kwargs": "object of keyword arguments",
-    "generator": "optional Python expression returning (args, kwargs), for large inputs; else null",
+    "generator": "optional Python expression (not a lambda or function) that evaluates to a pair "
+                 "(list_of_args, dict_of_kwargs), e.g. ([list(range(100000)), 199999], {}), for large inputs; "
+                 "else null",
     "expected": "expected return value (JSON)",
     "expect_exception": "exception class name if the call must raise, else null",
     "compare": "exact | unordered | float",

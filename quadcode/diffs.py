@@ -151,9 +151,14 @@ def _path(header_line: str) -> str:
     return header_line[4:].split("\t", 1)[0].strip()
 
 
+# Wrapper lines of the "apply_patch" format some models emit around a unified diff; they carry no change.
+_PATCH_WRAPPER_RE = re.compile(r"^\*\*\* (?:Begin Patch|End Patch|End of File|(?:Update|Add|Delete) File: .*)$")
+
+
 def _hunk_end(lines: Sequence[str], i: int) -> bool:
     line = lines[i]
-    return line.startswith("@@") or line.startswith("diff ") or _is_file_header(lines, i)
+    return (line.startswith("@@") or line.startswith("diff ") or _is_file_header(lines, i)
+            or bool(_PATCH_WRAPPER_RE.match(line)))
 
 
 def _strip_trailing_blanks(body: list[tuple[str, bool]], old_count: int | None) -> list[tuple[str, bool]]:
@@ -235,7 +240,7 @@ def parse_diff(text: str) -> ParsedDiff:
             old_nl_missing |= o_nl
             new_nl_missing |= n_nl
             continue
-        if hunks and line.strip() and not line.startswith(("diff ", "index ")):
+        if hunks and line.strip() and not line.startswith(("diff ", "index ")) and not _PATCH_WRAPPER_RE.match(line):
             raise DiffParseError(f"unexpected line after hunk: {line[:60]!r}", len(hunks) - 1)
         i += 1
     if not hunks:

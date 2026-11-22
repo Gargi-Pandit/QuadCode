@@ -215,3 +215,15 @@ def test_make_diff_round_trip_randomized() -> None:
             assert diff == ""
             continue
         assert apply_diff(a, diff).text == b, diff
+
+
+def test_apply_patch_wrapper_lines_are_ignored() -> None:
+    base = "def f():\n    return 1\n"
+    text = ("*** Begin Patch\n*** Update File: solution.py\n@@\n-def f():\n-    return 1\n+def f():\n"
+            "+    return 2\n*** End Patch\n")
+    assert apply_diff(base, parse_diff(text)).text == "def f():\n    return 2\n"
+
+
+def test_other_text_after_a_hunk_is_still_rejected() -> None:
+    with pytest.raises(DiffParseError, match="unexpected line"):
+        parse_diff("@@\n-a\n+b\n*** something else\n")
