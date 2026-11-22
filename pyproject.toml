@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quadcode"
+version = "0.1.0"
+description = "Multi-agent collaborative code generation, review, testing and optimization system"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.12",
+    "PyYAML>=6.0",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+quadcode = "quadcode.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["quadcode*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

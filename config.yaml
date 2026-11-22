@@ -1,0 +1,76 @@
+# QuadCode configuration. This file is the ONLY source of provider and model names.
+# Every report, UI view and log line shows the provider/model configured here.
+
+# Provider blocks. Rate limits (rpm/tpm) are per block, so agents sharing a block share its quota.
+providers:
+  mock:
+    kind: mock
+    scenario: two_sum
+    rpm: 6000
+    tpm: 10000000
+    timeout_s: 5
+    max_retries: 3
+    backoff_base_s: 0.01
+    backoff_cap_s: 0.05
+
+  # Real providers are wired in milestone M6. Example blocks (uncomment and point agents at them):
+  # gemini:
+  #   kind: gemini
+  #   api_key_env: GEMINI_API_KEY
+  #   rpm: 10
+  #   tpm: 250000
+  #   timeout_s: 120
+  #   max_retries: 4
+  # openrouter:
+  #   kind: openai_compat
+  #   base_url: https://openrouter.ai/api/v1
+  #   api_key_env: OPENROUTER_API_KEY
+  #   rpm: 20
+  #   tpm: 100000
+  #   timeout_s: 120
+  #   max_retries: 4
+  # anthropic:
+  #   kind: anthropic
+  #   api_key_env: ANTHROPIC_API_KEY
+  #   rpm: 5
+  #   tpm: 20000
+  #   timeout_s: 120
+  #   max_retries: 4
+
+# The four agent slots, identified by role. Each slot gets its own independently constructed client.
+agents:
+  generator:
+    provider: mock
+    model: mock-generator-v1
+    temperature: 0.2
+  reviewer:
+    provider: mock
+    model: mock-reviewer-v1
+    temperature: 0.2
+  optimizer:
+    provider: mock
+    model: mock-optimizer-v1
+    temperature: 0.2
+  validator:
+    provider: mock
+    model: mock-validator-v1
+    temperature: 0.2
+
+# Two slots may not share the same (provider, model) unless this is set to true explicitly.
+allow_duplicate_models: false
+
+# Output token caps per call type.
+max_tokens:
+  analysis: 1200
+  initial: 3000
+  review: 1500
+  modify: 1500
+  challenge: 600
+
+run:
+  rounds: 3
+  parallel: true
+  budget_calls: null
+  cache_enabled: true
+  cache_dir: .quadcode_cache
+  runs_dir: runs
