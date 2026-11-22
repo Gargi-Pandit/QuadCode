@@ -109,7 +109,9 @@ def _limitations(rec: RunRecords) -> list[str]:
     if s is not None and s.isolation_warning:
         items.append(s.isolation_warning)
     for e in rec.of_kind("suspect_tests"):
-        items.append(f"Suspect tests (failed on every initial version): {', '.join(e.payload.get('test_ids') or [])}.")
+        verb = "set aside" if e.payload.get("set_aside") else "kept"
+        items.append(f"Suspect tests (failed on every initial version, {verb}): "
+                     f"{', '.join(e.payload.get('test_ids') or [])}.")
     unapplied = [r.id for r in rec.modifications if r.apply_error]
     if unapplied:
         items.append(f"Proposals whose diff did not apply and were never executed: {', '.join(unapplied)}.")

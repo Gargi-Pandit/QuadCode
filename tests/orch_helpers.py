@@ -63,7 +63,7 @@ class Built:
     clock: FakeClock
 
     def provider(self, role: Role) -> MockProvider:
-        client = self.gateway.clients[role]
+        client = self.gateway.clients[role][0]
         assert isinstance(client, MockProvider)
         return client
 

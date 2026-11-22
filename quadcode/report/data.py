@@ -182,14 +182,24 @@ class RunRecords:
         return SelectionEvidence.model_validate(ev.payload["evidence"]), ev
 
     def agent_identity(self, role: Role) -> str:
-        """``provider/model`` of a slot from the run's config snapshot, else from its messages."""
+        """``provider/model`` behind a slot: the models that answered it, as logged.
+
+        When a fallback answered, the slot's first choice from the config snapshot is named too, so a
+        reader never takes the fallback's work for the first choice's.
+        """
+        configured = None
         if self.config is not None:
             agent = self.config.agent(role)
-            return f"{agent.provider}/{agent.model}"
-        for m in self.messages():
-            if m.role is role:
-                return f"{m.provider}/{m.model}"
-        return "not recorded"
+            configured = f"{agent.provider}/{agent.model}"
+        answered = list(dict.fromkeys(f"{m.provider}/{m.model}" for m in self.messages() if m.role is role and m.ok))
+        if not answered:
+            if configured is not None:
+                return configured
+            tried = [f"{m.provider}/{m.model}" for m in self.messages() if m.role is role]
+            return tried[-1] if tried else "not recorded"
+        if configured is None or answered == [configured]:
+            return ", ".join(answered)
+        return f"{', '.join(answered)} (fallback; first choice {configured})"
 
     def who(self, role: Role | None) -> str:
         if role is None:

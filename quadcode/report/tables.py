@@ -72,7 +72,10 @@ class _Usage:
         self.tokens_in += c.tokens_in
         self.tokens_out += c.tokens_out
         self.latency_s += c.latency_s
-        self.estimated = self.estimated or c.tokens_estimated
+        # A failed attempt logs 0 tokens flagged as estimated; it adds nothing, so it does not make the total an
+        # estimate. Only counted tokens that were estimated do.
+        if c.tokens_in or c.tokens_out:
+            self.estimated = self.estimated or c.tokens_estimated
 
 
 def _cost(usage: _Usage, provider: str, model: str, pricing: AppConfig | None) -> float | None:

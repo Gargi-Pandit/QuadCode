@@ -47,8 +47,8 @@ def overview(rec: RunRecords, pricing: AppConfig | None) -> list[Block]:
     for err in rec.load_errors:
         blocks.append(Note(f"Run records could not be fully read: {err}", "warning"))
     if rec.config is not None:
-        blocks.append(table(["role", "slot", "provider", "kind", "model"],
-                            [[r["role"], r["label"], r["provider"], r["kind"], r["model"]]
+        blocks.append(table(["role", "slot", "provider", "kind", "model", "fallbacks, in order"],
+                            [[r["role"], r["label"], r["provider"], r["kind"], r["model"], r["fallbacks"]]
                              for r in rec.config.describe_agents()],
                             caption="Agent slots (from the run's config snapshot)"))
     blocks.append(Para("Labels: values marked 'measured' come from executing code in the sandbox. Values "

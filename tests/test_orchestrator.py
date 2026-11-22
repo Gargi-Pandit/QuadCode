@@ -55,7 +55,9 @@ def test_initial_versions_are_the_agents_code(run: tuple[Built, RunSummary]) -> 
 
 def test_phase2_is_blind_and_identical(run: tuple[Built, RunSummary]) -> None:
     built, _ = run
-    prompts = {r: next(q.prompt for q in built.provider(r).requests if q.call_type is CallType.INITIAL)
+    # the output limit note at the end depends on each slot's token cap; the task itself must be identical
+    prompts = {r: next(q.prompt for q in built.provider(r).requests
+                       if q.call_type is CallType.INITIAL).split("\n\nOUTPUT LIMIT:")[0]
                for r in Role}
     for prompt in prompts.values():
         for code in (G1_CODE, C1_CODE, P1_CODE, D1_CODE):

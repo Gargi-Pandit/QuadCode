@@ -73,7 +73,8 @@ class Orchestrator:
         self.ctx = RunContext(
             config=config, run_dir=run_dir, runlog=gateway.runlog, store=VersionStore(run_dir),
             ledger=ModificationLedger(run_dir), pool=AgentPool(gateway, config.run.parallel), sandbox=sandbox,
-            state=state, tests=load_test_cases(suite_path) if suite_path.is_file() else [],
+            state=state, tests=[t for t in (load_test_cases(suite_path) if suite_path.is_file() else [])
+                                if t.id not in state.disputed_tests],
             suite_runs=_load_suite_runs(run_dir / TESTS_FILE))
         self.gateway = gateway
 
@@ -214,14 +215,40 @@ class Orchestrator:
                            if all(next(r.status for r in s.results if r.test_id == t.id) is not TestStatus.PASS
                                   for s in executed)]
                 if suspect:
-                    self.ctx.event(phase, "suspect_tests", test_ids=suspect,
-                                   note="failed on every executed initial implementation; the expected values "
-                                        "may be wrong. Kept in the suite.")
+                    self._set_aside(phase, suspect)
+            if executed and not self.ctx.tests:
+                self._stop(RunStatus.UNVERIFIED, "every test failed on every initial implementation, so the "
+                           "whole suite is disputed and nothing can be verified",
+                           [f"disputed test {t}" for t in self.state.disputed_tests])
             if not executed:
                 reasons = sorted({s.not_executed_reason or "" for s in self.state.initial_suites.values()})
                 self._stop(RunStatus.UNVERIFIED, "no initial implementation could be executed",
                            [f"not executed: {r}" for r in reasons])
         self._end(phase, "local_tests")
+
+    def _set_aside(self, phase: Phase, test_ids: list[str]) -> None:
+        """Drop tests that every independent implementation failed from all later decisions.
+
+        When four separately written solutions all disagree with a test, the test's expected value is the
+        likelier mistake. Keeping it would reward changes that bend the code toward a wrong answer, so it is
+        set aside: it no longer ranks versions, decides modifications or verifies the final version. It stays
+        in test_suite.json and tests.json, and the run lists it as unresolved.
+        """
+        disputed = set(test_ids)
+        self.state.disputed_tests = sorted(disputed)
+        self.ctx.tests = [t for t in self.ctx.tests if t.id not in disputed]
+        self.state.initial_suites = {
+            label: suite.model_copy(update={"results": [r for r in suite.results if r.test_id not in disputed]})
+            for label, suite in self.state.initial_suites.items()}
+        self.ctx.event(phase, "suspect_tests", test_ids=sorted(disputed), set_aside=True,
+                       note="failed on every executed initial implementation, so the expected values are probably "
+                            "wrong. Set aside: not used to rank versions, accept modifications or verify the final "
+                            "version; listed as unresolved.")
+        self.ctx.save()
+
+    def _disputed_notes(self) -> list[str]:
+        return [f"disputed test {t}: every independent initial implementation failed it, so it was set aside "
+                "(its expected value is probably wrong)" for t in self.state.disputed_tests]
 
     # ------------------------------------------------------------ phase 3
 
@@ -325,10 +352,10 @@ class Orchestrator:
                        verified=suite.all_passed)
         if suite.all_passed:
             self.state.status = RunStatus.COMPLETED
-            self.state.unresolved = []
+            self.state.unresolved = self._disputed_notes()
         else:
             self.state.status = RunStatus.UNVERIFIED
-            self.state.unresolved = failing or [f"not executed: {suite.not_executed_reason}"]
+            self.state.unresolved = (failing or [f"not executed: {suite.not_executed_reason}"]) + self._disputed_notes()
         self._end(phase, "integrate")
 
     # ------------------------------------------------------------ driver

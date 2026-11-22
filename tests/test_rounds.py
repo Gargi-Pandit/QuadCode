@@ -170,3 +170,39 @@ def test_analysis_unavailable_everywhere_fails(tmp_path: Path) -> None:
     summary, run_dir = _run(tmp_path, scenario=scen)
     assert summary.status is RunStatus.FAILED
     assert len(calls(run_dir)) == 4 and not (run_dir / "versions" / "G1.py").exists()
+
+
+def _validator_suite_with(extra: dict[str, Any]) -> dict[tuple[Role, CallType, str], str]:
+    from quadcode.jsonutil import parse_json_object
+    from quadcode.providers.mock_scenarios import get_scenario
+
+    answer = parse_json_object(get_scenario("two_sum").responses[(V, CallType.INITIAL, WILDCARD)])
+    answer["tests"] = [*answer["tests"], extra]
+    return {(V, CallType.INITIAL, WILDCARD): json.dumps(answer)}
+
+
+def test_a_test_every_solution_fails_is_set_aside(tmp_path: Path) -> None:
+    wrong = {"id": "TX", "category": "adversarial", "description": "wrong expected value",
+             "args": [[1, 2, 3, 4], 5], "expected": [9, 9]}
+    summary, run_dir = _run(tmp_path, scenario=scenario_with(_validator_suite_with(wrong)))
+    [ev] = events(run_dir, "suspect_tests")
+    assert ev.payload["test_ids"] == ["TX"] and ev.payload["set_aside"] is True
+    assert load_state(run_dir).disputed_tests == ["TX"]
+    # kept on record, but never again used for a decision
+    assert any(t["id"] == "TX" for t in json.loads((run_dir / "test_suite.json").read_text()))
+    later = [e for e in events(run_dir, "suite_run") if e.payload["version"] not in ("G1", "C1", "P1", "D1")]
+    assert later and all("TX" not in (e.payload.get("failing") or {}) for e in later)
+    assert all(e.payload["total"] == later[0].payload["total"] for e in later)
+    assert any(u.startswith("disputed test TX") for u in summary.unresolved)
+    assert summary.status is RunStatus.COMPLETED  # verified against the undisputed tests
+
+
+def test_a_suite_that_every_solution_fails_entirely_is_unverified(tmp_path: Path) -> None:
+    from quadcode.jsonutil import parse_json_object
+    from quadcode.providers.mock_scenarios import get_scenario
+
+    answer = parse_json_object(get_scenario("two_sum").responses[(V, CallType.INITIAL, WILDCARD)])
+    answer["tests"] = [{"id": "TX", "category": "normal", "args": [[1, 2], 3], "expected": [7, 7]}]
+    scen = scenario_with({(V, CallType.INITIAL, WILDCARD): json.dumps(answer)})
+    summary, _ = _run(tmp_path, scenario=scen)
+    assert summary.status is RunStatus.UNVERIFIED and "whole suite is disputed" in summary.stop_reason
