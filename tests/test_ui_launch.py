@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import dataclasses
 import json
 import re
 import subprocess
@@ -94,6 +95,38 @@ def test_bench_and_resume_commands(opts: CommonOptions) -> None:
         launch.plan_resume(ResumeRequest(kind="bench", id="r1", mock=False, budget_calls=3), opts)
 
 
+def test_typed_problem_is_written_only_when_the_run_starts(opts: CommonOptions) -> None:
+    req = SolveRequest(problem=Path("ignored.md"), rounds=1, run_id="typed1", problem_title="Palindrome check",
+                       problem_text="  Write a Python function is_palindrome(s: str) -> bool.\r\n\r\nIgnore case.  ")
+    plan = launch.plan_solve(req, opts)
+    path = opts.runs_dir / launch.TYPED_DIR / "typed1.md"
+    assert plan.argv[7:9] == ["solve", str(path)] and "--mock" in plan.argv
+    assert not path.exists()  # planning (every dashboard rerun) writes nothing
+    # Run a harmless child instead of the pipeline: only the file write is under test here.
+    item = launch.start(dataclasses.replace(plan, argv=[sys.executable, "-c", "pass"]), opts)
+    item.process.wait(timeout=30)
+    assert path.read_text(encoding="utf-8") == ("# Palindrome check\n\nWrite a Python function "
+                                                "is_palindrome(s: str) -> bool.\n\nIgnore case.\n")
+    with pytest.raises(LaunchError, match="already exists"):
+        launch.plan_solve(req, opts)  # the run id's problem file is taken
+    with pytest.raises(LaunchError, match="already exists"):
+        launch.start(plan, opts)  # never overwritten, even by a stale plan
+
+
+def test_typed_problem_text_checks(opts: CommonOptions) -> None:
+    assert launch.typed_problem("Ignored title", "# My heading\nbody") == "# My heading\nbody\n"
+    assert launch.typed_problem("", "body only") == "body only\n"
+    with pytest.raises(LaunchError, match="type a problem"):
+        launch.plan_solve(SolveRequest(problem=PROBLEM, rounds=1, problem_text=" \n "), opts)
+    with pytest.raises(LaunchError, match="limit"):
+        launch.typed_problem("", "x" * (launch.MAX_PROBLEM_CHARS + 1))
+    plan = launch.plan_solve(SolveRequest(problem=PROBLEM, rounds=1, problem_title="Is Palindrome?",
+                                          problem_text="text", mock=False, real_confirmed=True,
+                                          budget_calls=40), opts)
+    assert re.fullmatch(r"\d{8}-\d{6}-is-palindrome-[0-9a-f]{4}", plan.id)
+    assert "--mock" not in plan.argv and plan.argv[plan.argv.index("--budget-calls") + 1] == "40"
+
+
 def test_mock_scenario_of_reads_the_config_snapshot(tmp_path: Path) -> None:
     (tmp_path / "config.json").write_text(json.dumps({"providers": {"mock": {"kind": "mock",
                                                                              "scenario": "merge_intervals"}}}))
@@ -166,3 +199,25 @@ def test_mock_solve_launch_runs_the_cli_to_completion(tmp_path: Path) -> None:
     log = item.log_path.read_text()
     assert log.startswith(f"$ {plan.command}") and "run ui-e2e: COMPLETED" in log
     assert (plan.run_dir / "calls.jsonl").is_file()  # the child process made the (mock) agent calls
+
+
+def test_typed_problem_launch_reaches_the_pipeline(tmp_path: Path) -> None:
+    data = copy.deepcopy(TEST_CONFIG)
+    data["run"] = {"rounds": 1, "cache_dir": str(tmp_path / "cache"), "runs_dir": str(tmp_path / "runs")}
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text(yaml.safe_dump(data))
+    opts = CommonOptions(config=cfg, env_file=tmp_path / "none.env", runs_dir=tmp_path / "runs")
+    text = PROBLEM.read_text(encoding="utf-8").split("\n", 1)[1]  # the sample without its heading
+    plan = launch.plan_solve(SolveRequest(problem=Path("unused.md"), rounds=1, run_id="typed-e2e",
+                                          problem_title="Typed two sum", problem_text=text), opts)
+    item = launch.start(plan, opts, cwd=ROOT)
+    try:
+        item.process.wait(timeout=300)
+    except subprocess.TimeoutExpired:
+        item.process.kill()
+        raise
+    assert item.returncode == 0, item.log_tail()
+    stored = (plan.run_dir / "problem.md").read_text(encoding="utf-8")
+    assert stored == launch.typed_problem("Typed two sum", text) and stored.startswith("# Typed two sum\n")
+    summary = json.loads((plan.run_dir / "summary.json").read_text())
+    assert summary["status"] == "completed"

@@ -22,6 +22,10 @@ from quadcode.ui.render import safe_inline, safe_text
 
 REAL_WARNING = ("Real providers spend API quota. The run uses the keys in .env through the same command line as "
                 "`quadcode solve` / `quadcode bench`, stops after the call budget, and can be resumed.")
+TYPE_OPTION = "type a new problem..."
+TYPE_PLACEHOLDER = ("Write a Python function is_palindrome(s: str) -> bool that returns True if s reads the same "
+                    "forwards and backwards, ignoring case and non-alphanumeric characters. s has at most 10^5 "
+                    "characters.")
 
 
 @dataclass(frozen=True)
@@ -52,7 +56,11 @@ def _mode(key: str) -> tuple[bool, bool, int | None]:
 
 def _start(plan: launch.Plan, common: launch.CommonOptions, id_key: str) -> None:
     """Button callback: start exactly the plan whose command was shown, then offer a fresh id."""
-    _registry()[plan.id] = launch.start(plan, common)
+    try:
+        _registry()[plan.id] = launch.start(plan, common)
+    except launch.LaunchError as exc:
+        st.error(safe_text(str(exc)))
+        return
     st.session_state.pop(id_key, None)
     st.toast(f"Started {plan.kind} {plan.id}")
 
@@ -76,9 +84,20 @@ def _id_input(label: str, key: str, prefix: str) -> str:
 
 def _solve_form(opts: LaunchOptions) -> None:
     files = launch.problem_files(Path("samples"), Path(opts.problems_dir))
-    options = [str(p) for p in files] + ["other file..."]
+    options = [str(p) for p in files] + [TYPE_OPTION, "other file..."]
     pick = st.selectbox("Problem statement", options, key="solve-problem")
-    path = Path(st.text_input("Path to a problem file", key="solve-path")) if pick == "other file..." else Path(pick)
+    text: str | None = None
+    title = ""
+    path = Path(pick)
+    if pick == "other file...":
+        path = Path(st.text_input("Path to a problem file", key="solve-path"))
+    elif pick == TYPE_OPTION:
+        title = str(st.text_input("Title (optional)", key="solve-title", placeholder="e.g. Palindrome check"))
+        text = str(st.text_area("Problem statement", key="solve-text", height=180, placeholder=TYPE_PLACEHOLDER,
+                                max_chars=launch.MAX_PROBLEM_CHARS))
+        st.caption("Only Python solutions are executed. Name the function, its parameters and return type, and "
+                   "the constraints, so the agents and the Validator's tests agree on one signature. The text is "
+                   "saved to runs/.ui-problems/<run id>.md when the run starts.")
     c = st.columns(3)
     rounds = c[0].slider("Rounds", 1, 5, 3, key="solve-rounds")
     ablation = c[1].selectbox("Pipeline", [a.value for a in Ablation], key="solve-ablation")
@@ -89,8 +108,15 @@ def _solve_form(opts: LaunchOptions) -> None:
     if mock:
         scenario = st.selectbox("Mock scenario (scripted answers; they ignore the problem text)", sorted(SCENARIOS),
                                 index=sorted(SCENARIOS).index("two_sum"), key="solve-scenario")
+        if text is not None:
+            st.info("Mock agents ignore the typed problem and answer from the scenario above. Choose "
+                    "\"real providers\" to have the agents work on what you typed.")
     req = launch.SolveRequest(problem=path, rounds=rounds, mock=mock, scenario=scenario, budget_calls=budget,
-                              run_id=run_id, ablation=ablation, real_confirmed=confirmed)
+                              run_id=run_id, ablation=ablation, real_confirmed=confirmed, problem_text=text,
+                              problem_title=title)
+    if text is not None and not text.strip():
+        st.caption("Type a problem statement to see the command it will run.")
+        return
     _submit(lambda: launch.plan_solve(req, opts.common), opts.common, "solve", "solve-id")
 
 

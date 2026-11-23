@@ -28,6 +28,8 @@ from quadcode.runlog import CALLS_FILE, EVENTS_FILE
 from quadcode.schemas import Ablation, Phase
 
 LOG_DIR = ".ui-logs"
+TYPED_DIR = ".ui-problems"  # problem statements typed into the dashboard, one file per run
+MAX_PROBLEM_CHARS = 20_000
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
 _ATTEMPT_STATUSES = {"ok", "provider_error", "invalid_output"}
 
@@ -55,6 +57,10 @@ class SolveRequest:
     run_id: str = ""
     ablation: str = Ablation.NONE.value
     real_confirmed: bool = False
+    # A problem typed into the dashboard. When set, ``problem`` is ignored: the text is written to
+    # ``<runs_dir>/.ui-problems/<run_id>.md`` when the run starts, and that file is solved.
+    problem_text: str | None = None
+    problem_title: str = ""
 
 
 @dataclass(frozen=True)
@@ -86,6 +92,8 @@ class Plan:
     id: str
     argv: list[str]
     run_dir: Path
+    # A typed problem statement and the file it is written to by ``start``, just before the run.
+    problem_file: tuple[Path, str] | None = None
 
     @property
     def command(self) -> str:
@@ -138,23 +146,45 @@ def _tail(opts: CommonOptions, budget: int | None) -> list[str]:
     return out
 
 
+def typed_problem(title: str, text: str) -> str:
+    """The problem file for a typed statement: the title becomes its heading unless it has one."""
+    body = text.strip().replace("\r\n", "\n")
+    if not body:
+        raise LaunchError("type a problem statement first")
+    if len(body) > MAX_PROBLEM_CHARS:
+        raise LaunchError(f"the problem statement is {len(body)} characters; the limit is {MAX_PROBLEM_CHARS}")
+    heading = " ".join(title.split())
+    if heading and not body.startswith("#"):
+        body = f"# {heading}\n\n{body}"
+    return body + "\n"
+
+
 def plan_solve(req: SolveRequest, opts: CommonOptions) -> Plan:
-    if not req.problem.is_file():
+    typed = typed_problem(req.problem_title, req.problem_text) if req.problem_text is not None else None
+    if typed is None and not req.problem.is_file():
         raise LaunchError(f"no such problem file: {req.problem}")
     _check_rounds(req.rounds)
     _check_spend(req.mock, req.real_confirmed, req.budget_calls)
     if req.ablation not in {a.value for a in Ablation}:
         raise LaunchError(f"unknown ablation '{req.ablation}'")
-    run_id = req.run_id.strip() or new_id("problem", req.problem.stem)
+    name = (req.problem_title or "typed") if typed is not None else req.problem.stem
+    run_id = req.run_id.strip() or new_id("problem", name)
     _check_id(run_id, opts.runs_dir, must_exist=False)
-    argv = [*_base(opts), "solve", str(req.problem), "--rounds", str(req.rounds), "--run-id", run_id]
+    problem = req.problem
+    problem_file: tuple[Path, str] | None = None
+    if typed is not None:
+        problem = opts.runs_dir / TYPED_DIR / f"{run_id}.md"
+        if problem.exists():
+            raise LaunchError(f"{problem} already exists; pick another run id")
+        problem_file = (problem, typed)
+    argv = [*_base(opts), "solve", str(problem), "--rounds", str(req.rounds), "--run-id", run_id]
     if req.mock:
         argv.append("--mock")
         if req.scenario:
             argv += ["--scenario", req.scenario]
     if req.ablation != Ablation.NONE.value:
         argv += ["--ablation", req.ablation]
-    return Plan("solve", run_id, argv + _tail(opts, req.budget_calls), opts.runs_dir / run_id)
+    return Plan("solve", run_id, argv + _tail(opts, req.budget_calls), opts.runs_dir / run_id, problem_file)
 
 
 def plan_bench(req: BenchRequest, opts: CommonOptions) -> Plan:
@@ -247,7 +277,18 @@ class Launched:
 
 
 def start(plan: Plan, opts: CommonOptions, cwd: Path | None = None) -> Launched:
-    """Run the plan's argv in a child process, its output going to ``<runs_dir>/.ui-logs/<id>.log``."""
+    """Run the plan's argv in a child process, its output going to ``<runs_dir>/.ui-logs/<id>.log``.
+
+    A typed problem is written first, to a new file (never over an existing one).
+    """
+    if plan.problem_file is not None:
+        path, text = plan.problem_file
+        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(path, "x", encoding="utf-8") as fh:
+                fh.write(text)
+        except FileExistsError as exc:
+            raise LaunchError(f"{path} already exists; pick another run id") from exc
     log_dir = opts.runs_dir / LOG_DIR
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / f"{plan.id}.log"

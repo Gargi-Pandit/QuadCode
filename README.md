@@ -268,7 +268,10 @@ communication timeline, calls and tokens, version diffs with line provenance, ev
 record and the measured benchmark next to the agents' theoretical complexity claims. **Benches**
 shows the hidden-test results, CIs, win/tie/loss, charts and each pipeline run. **New run** starts
 `solve`, `bench` or a resume as the same `quadcode` command line, shows the command first, and
-follows its progress.
+follows its progress. To solve a new problem, pick **type a new problem...** under Problem statement
+and type it in (name the Python function, its parameters and return type); the text is saved to
+`runs/.ui-problems/<run id>.md` when the run starts. Mock agents ignore typed text, so choose real
+providers to have the agents work on it.
 
 Viewing makes no API call and changes no file. Mock is preselected for new runs; a real run needs a
 "spends API quota" checkbox and a call budget. `.streamlit/config.toml` keeps the server on
