@@ -258,3 +258,32 @@ On these three problems the pipeline never beats the best single agent: three of
 - Mock ablations cannot show an effect (scripted answers ignore the prompt). Real ablations cost roughly one more full run each per problem.
 - With 3-10 problems the CIs are wide; the summary says so.
 - Groq's 429 error text includes the account's organization id, and it is logged verbatim in calls.jsonl (runs/ is git-ignored; API keys are still redacted).
+
+---
+
+## M8: Streamlit dashboard (2026-11-23)
+
+**Approved plan (short):** a thin Streamlit view (`quadcode/ui/app.py`) over saved runs and benches that makes no API call and writes nothing when viewing; new runs start only as `python -m quadcode solve|bench ...` child processes (the same CLI and orchestrator), mock preselected, real runs gated; every number from logged files and labeled measured, theoretical (agent claim) or provider-reported/estimated. Logic in small tested modules, Streamlit only in the page modules.
+
+**Key decisions**
+- The full ten-section report is reused as-is (`build_document`) and rendered into Streamlit, so the dashboard and report.md cannot disagree. Interactive views (timeline with filters, calls, version diff and line provenance, modification details, benchmark chart) are plain rows built from `RunRecords`; bench numbers come from the same `summarize()` that writes the CSVs.
+- Untrusted text: the report's Markdown escaping plus Streamlit's extensions (`$` math, `:emoji:`/`:color[...]` directives, `_`). Tables go to `st.dataframe` as plain cells; HTML is never enabled.
+- Launching: the command is shown before starting, and the Start button runs exactly that plan (button callback), then offers a fresh id. Real providers need the "spends API quota" checkbox and a call budget. The dashboard process never loads `.env`; the child does, as on the command line. Children run in their own session (closing the dashboard does not kill a run); Stop sends SIGINT and the run stays resumable. Output goes to `runs/.ui-logs/<id>.log`; progress is read from events.jsonl / bench.json.
+- The only buttons that write are "Rebuild report" and "Rebuild bench outputs" (derived files, zero API calls).
+
+**Deviations from plan**
+- Pages split into `page_run.py`, `page_bench.py`, `page_launch.py`; `render.py` and `app.py` as planned. Added `quadcode/__main__.py`.
+- Directories with only calls.jsonl (`quadcode smoke`) or only versions (`apply-diff`) are listed as "other", not as unfinished runs.
+- Found while smoke-testing `streamlit run`: by default Streamlit sends usage statistics, looks up the machine's public IP and listens on all interfaces. Added `.streamlit/config.toml` (no usage stats, `server.address = "localhost"`, headless). Since the dashboard can start runs that spend quota, it should not be reachable from the network.
+- `streamlit>=1.50` is an optional extra `ui` (also in `dev` and requirements.txt); the core package does not import it. Installed 1.67.0 on Python 3.14.
+
+**Built**
+- `quadcode/ui/`: `catalog.py`, `views.py`, `bench_views.py`, `launch.py`, `render.py`, `page_run.py`, `page_bench.py`, `page_launch.py`, `app.py`; `quadcode/__main__.py`; `.streamlit/config.toml`.
+- Run view tabs: Overview (status, V0 selection steps, slots with real provider/model, availability, final code), Report (all ten sections, downloads), Communication timeline (filters, full logged record per line), Calls & tokens, Versions & diffs (any two versions, line provenance), Modifications (accepted and rejected, verdicts, diff), Tests & benchmark (Phase 2.5 results, claimed complexity, measured runtime chart and table). Bench view: conditions with CI, paired W/T/L, per-problem results, chart PNGs, each sub-run. New run: solve, bench, resume, live progress.
+
+**Tests:** `pytest`: 620 passed, 0 failed, fully offline. 41 new: catalog classification/ordering/damaged records; view rows checked against summary.json, events.jsonl line numbers, calls.jsonl totals, benchmark.json values, M-001's diff and line credit; argv building and every refusal (real without confirmation or budget, rounds, ids, existing dirs); progress on a half-written log; Stop; a real subprocess mock solve to COMPLETED; AppTest over a mock run, a hostile-text run and a mock bench (every tab renders, nothing in the runs directory changes by a single byte, `<script>`/links/math stay inert); launcher defaults to mock and gates real runs; clicking Start runs exactly the shown command and the page follows it to "exited with code 0". `streamlit run` smoke check: health endpoint ok, localhost only.
+
+**Open issues**
+- Not checked in a real browser by me (AppTest drives the script headlessly; the live server only answered its health check). The live-progress fragment's 2-second refresh only runs in a real browser session.
+- Runs started from the dashboard are tracked in the dashboard process. After a dashboard restart they are still listed and viewable, but their live progress panel and Stop button are gone.
+- The report's own Markdown escaping does not escape `_` (an agent could add emphasis in report.md); the dashboard escapes it. Cosmetic, not an injection of links or HTML.
