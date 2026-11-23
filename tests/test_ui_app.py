@@ -131,6 +131,29 @@ def test_launcher_defaults_to_mock_and_gates_real_runs(app: AppTest, runs: Path)
     assert not (runs / ".ui-logs").exists()  # nothing was started
 
 
+def test_typed_problem_form_builds_the_command_and_writes_nothing(app: AppTest, runs: Path) -> None:
+    app.run()
+    app.sidebar.radio(key="view").set_value("New run").run()
+    app.selectbox(key="solve-problem").select("type a new problem...").run()
+    _ok(app)
+    assert not [c for c in app.code if c.language == "bash"]  # nothing to run until a problem is typed
+    assert not [b for b in app.button if b.key == "solve-start"]
+    app.text_input(key="solve-id").set_value("typed-ui").run()
+    app.text_input(key="solve-title").set_value("Palindrome check").run()
+    app.text_area(key="solve-text").set_value("Write a Python function is_palindrome(s: str) -> bool.").run()
+    _ok(app)
+    commands = [c.value for c in app.code if c.language == "bash"]
+    assert commands and f"solve {runs}/.ui-problems/typed-ui.md" in commands[0] and "--mock" in commands[0]
+    assert any("Mock agents ignore the typed problem" in i.value for i in app.info)
+    app.radio(key="solve-mode").set_value("real providers").run()
+    app.checkbox(key="solve-confirm").check().run()
+    _ok(app)
+    commands = [c.value for c in app.code if c.language == "bash"]
+    assert commands and "--mock" not in commands[0] and ".ui-problems/typed-ui.md" in commands[0]
+    assert [b for b in app.button if b.key == "solve-start"]
+    assert not (runs / ".ui-problems").exists()  # the file is written only when Start is pressed
+
+
 def test_empty_runs_dir_explains_how_to_start(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("QUADCODE_RUNS_DIR", str(tmp_path / "none"))
     monkeypatch.setenv("QUADCODE_CONFIG", str(tmp_path / "missing.yaml"))
