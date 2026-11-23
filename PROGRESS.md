@@ -287,3 +287,29 @@ On these three problems the pipeline never beats the best single agent: three of
 - Not checked in a real browser by me (AppTest drives the script headlessly; the live server only answered its health check). The live-progress fragment's 2-second refresh only runs in a real browser session.
 - Runs started from the dashboard are tracked in the dashboard process. After a dashboard restart they are still listed and viewable, but their live progress panel and Stop button are gone.
 - The report's own Markdown escaping does not escape `_` (an agent could add emphasis in report.md); the dashboard escapes it. Cosmetic, not an injection of links or HTML.
+
+---
+
+## M9: README (2026-11-23)
+
+**Approved plan (short):** one top-level README that takes a new user from clone to a mock run, a real free-tier run, a benchmark, the dashboard, the test suite and the reproduction of a run; every command must work as written and every quoted result must trace to a record. A test keeps the README from drifting away from the CLI and config.yaml. Verified by following it in a fresh clone.
+
+**Key decisions**
+- Real results are quoted from this log with their run ids, and the README says the run directories are git-ignored and not in the repo. It states plainly that on the three real bench problems the pipeline never beat the best single agent, and why.
+- The line-up table names the real Groq models and the spec's intended defaults side by side; `tests/test_readme.py` checks it against config.yaml.
+- Commands are one per `bash` block so each can be copied or run on its own.
+
+**Deviations from plan**
+- None in scope. Two timing claims were corrected after the fresh-clone check measured them: the mock solve takes about 25 s with Docker (written as "about a minute" at first), the mock bench about 5 minutes.
+
+**Built**
+- `README.md`: how it works (phases table), current line-up and honest results, requirements, setup, mock quick start, real runs (budget, resume, cache, rate limits, exit codes), configuration, run directory layout, benchmarks, dashboard, tests, reproduction, security model, known limitations, project layout, command reference.
+- `tests/test_readme.py`: every `quadcode ...` line in a bash block parses with the real argument parser; `streamlit`, `pytest` and `cp` lines point at real files; every repo path and linked document the README names exists; the line-up table matches config.yaml.
+
+**Fresh-clone check** (local `git clone`, new venv, `pip install -e '.[dev]'`, `cp .env.example .env`, mock only, no API calls): `check-config` and `sandbox-info` (Docker, python:3.12-slim) ok; mock `solve` COMPLETED in 23 s (M-001 accepted, M-002 rejected on T03, early stop after round 2, final V1 passes all 9 tests); `report`, `versions --blame V1` (M-001's two lines credited to the reviewer), `test-solution ... --benchmark` (9/9 PASS) ok; `bench --mock` COMPLETED in 4 m 57 s (full 97.4% [92.3%, 100%], same numbers as the M7 mock bench); `bench-report` ok; the dashboard started on localhost; `pytest tests/test_readme.py tests/test_orchestrator.py` passed.
+
+**Tests:** `pytest`: 637 passed, 0 failed (5 m 31 s), including the 7 Docker tests. 17 are new, all in `tests/test_readme.py`.
+
+**Open issues**
+- The README's real-run commands (`models`, `smoke`, real `solve` and `bench`) were checked for syntax only; running them spends quota and was not part of this milestone.
+- During the fresh-clone check another process already held port 8501, so Streamlit picked 8502. Streamlit does that on its own; the README says to open the printed URL.
