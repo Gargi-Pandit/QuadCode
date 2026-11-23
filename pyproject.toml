@@ -16,7 +16,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+ui = ["streamlit>=1.50"]
+dev = ["pytest>=8", "streamlit>=1.50"]
 
 [project.scripts]
 quadcode = "quadcode.cli:main"

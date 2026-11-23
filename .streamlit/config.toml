@@ -1,0 +1,9 @@
+# Dashboard settings, read by `streamlit run` from the project root.
+[browser]
+# No usage statistics are sent to Streamlit.
+gatherUsageStats = false
+
+[server]
+# Only this machine can open the dashboard (it can start runs that spend API quota).
+address = "localhost"
+headless = true
